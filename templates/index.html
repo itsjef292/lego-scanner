@@ -710,7 +710,10 @@
         // Chromatic: transparent parts look darker AND less saturated
         const matchedHsvForTrans = rgbToHsv(mr, mg, mb);
         const sampledSatRatio = matchedHsvForTrans.s > 0 ? hsv.s / matchedHsvForTrans.s : 1;
-        const looksTransparent = sampledAvg / matchedAvg < 0.90 || sampledSatRatio < 0.82;
+        // Require BOTH darker AND less saturated — a part in shadow is dark but
+        // stays saturated (or gets more saturated), while a transparent part on a
+        // dark background is both darker AND less saturated (background bleeds through).
+        const looksTransparent = sampledAvg / matchedAvg < 0.90 && sampledSatRatio < 0.82;
         if (looksTransparent) {
           const bestHsv = rgbToHsv(mr, mg, mb);
           const findTransIn = (src) => {
