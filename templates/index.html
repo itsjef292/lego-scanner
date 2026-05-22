@@ -658,7 +658,7 @@
     return Math.min(d, 360 - d);
   }
 
-  function findClosestLegoColor(r, g, b, candidates, darkFraction = 0) {
+  function findClosestLegoColor(r, g, b, candidates, darkFraction = 0, preferred = null) {
     const pool = candidates?.length ? candidates : colors;
     const hsv = rgbToHsv(r, g, b);
     const isChromatic = hsv.s > 0.2 && hsv.v > 0.2;
@@ -694,12 +694,20 @@
       // distance matching — they are selected only via explicit transparency detection.
       if (c.name && /^Trans-|Glow In Dark|Satin|Milky/i.test(c.name)) score += 200;
 
+      // Server's top pick gets a prior bonus — only override if pixel sampling
+      // strongly disagrees (> 30 pts). Prevents bright-reference mismatches
+      // (e.g. Sand Blue avg=124 vs photo avg=204) from picking a lighter colour.
+      if (preferred && c.id === preferred.id) score -= 30;
+
       if (score < bestScore) { bestScore = score; best = c; }
     }
 
     // If the sample is much darker than the matched colour, the part may be
     // transparent (background shows through). Prefer a Trans- variant.
-    if (best?.rgb && !best.name.startsWith('Trans-')) {
+    // Skip entirely when using server-vetted candidates — Brickognize already
+    // knows if the part is transparent; don't second-guess it.
+    const usingServerCandidates = candidates?.length > 0;
+    if (!usingServerCandidates && best?.rgb && !best.name.startsWith('Trans-')) {
       const mr = parseInt(best.rgb.slice(0,2),16);
       const mg = parseInt(best.rgb.slice(2,4),16);
       const mb = parseInt(best.rgb.slice(4,6),16);
@@ -829,21 +837,19 @@
         .filter(Boolean);
 
       if (serverCandidates.length === 1) {
-        // Only one candidate — use it directly
         const c = serverCandidates[0];
         applyColor(c.id, c.name, c.rgb);
         return;
       } else if (serverCandidates.length > 1 && detectedRgb) {
-        // Multiple candidates — use pixel sample to pick the closest
         const avgBrightness = (detectedRgb.r + detectedRgb.g + detectedRgb.b) / 3;
         if (avgBrightness >= 70) {
           const closest = findClosestLegoColor(
             detectedRgb.r, detectedRgb.g, detectedRgb.b,
-            serverCandidates, detectedRgb.darkFraction || 0
+            serverCandidates, detectedRgb.darkFraction || 0,
+            serverCandidates[0]
           );
           if (closest) { applyColor(closest.id, closest.name, closest.rgb); return; }
         }
-        // Brightness too low — fall back to server's first candidate
         const c = serverCandidates[0];
         applyColor(c.id, c.name, c.rgb);
         return;
