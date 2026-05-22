@@ -337,6 +337,8 @@
     <label>Add to parts list</label>
     <div style="display:flex;gap:8px;align-items:center;">
       <select id="listSelect" style="flex:1"><option value="">Loading...</option></select>
+      <button onclick="deleteList()" title="Delete selected list"
+        style="flex-shrink:0;width:36px;height:36px;border-radius:50%;border:none;background:#6c757d;color:#fff;font-size:18px;line-height:1;cursor:pointer;">🗑</button>
       <button id="newListBtn" onclick="toggleNewList()" title="Create new list"
         style="flex-shrink:0;width:36px;height:36px;border-radius:50%;border:none;background:#e63946;color:#fff;font-size:22px;line-height:1;cursor:pointer;">+</button>
     </div>
@@ -462,6 +464,19 @@
     const visible = row.style.display === 'flex';
     row.style.display = visible ? 'none' : 'flex';
     if (!visible) document.getElementById('newListName').focus();
+  }
+
+  function deleteList() {
+    const sel = document.getElementById('listSelect');
+    const listId = sel.value;
+    const listName = sel.selectedOptions[0]?.text || 'this list';
+    if (!listId) return;
+    if (!confirm(`Delete "${listName.split(' (')[0]}"? This cannot be undone.`)) return;
+    fetch(`/api/partlists/${listId}`, { method: 'DELETE' })
+      .then(r => {
+        if (r.ok || r.status === 204) loadPartlists();
+        else r.json().then(d => alert('Error: ' + (d.detail || JSON.stringify(d))));
+      });
   }
 
   function createList() {

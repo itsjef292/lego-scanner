@@ -182,6 +182,17 @@ def add_part():
         return jsonify(resp.json()), resp.status_code
 
 
+@app.route("/api/partlists/<int:list_id>", methods=["DELETE"])
+def delete_partlist(list_id):
+    resp = requests.delete(
+        f"{RB_BASE}/users/{USER_TOKEN}/partlists/{list_id}/",
+        params={"key": API_KEY},
+    )
+    if resp.status_code == 204:
+        return '', 204
+    return jsonify(resp.json()), resp.status_code
+
+
 @app.route("/api/partlists", methods=["POST"])
 def create_partlist():
     name = (request.json or {}).get("name", "").strip()
