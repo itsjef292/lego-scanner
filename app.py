@@ -155,6 +155,16 @@ def identify():
         return jsonify({"error": str(e)}), 502
 
 
+@app.route("/api/partlists/<int:list_id>/parts")
+def get_partlist_parts(list_id):
+    page = request.args.get("page", 1)
+    resp = requests.get(
+        f"{RB_BASE}/users/{USER_TOKEN}/partlists/{list_id}/parts/",
+        params={"key": API_KEY, "page_size": 50, "page": page},
+    )
+    return jsonify(resp.json()), resp.status_code
+
+
 @app.route("/api/part/<part_num>")
 def get_part(part_num):
     resp = requests.get(

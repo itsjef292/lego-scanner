@@ -367,6 +367,54 @@
       border-bottom-color: #fff;
     }
 
+    /* ── Lists browser ── */
+    #screen-lists { padding: 0; }
+    .part-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .part-item:last-child { border-bottom: none; }
+    .part-item img {
+      width: 56px; height: 56px;
+      object-fit: contain;
+      border-radius: 8px;
+      background: #f8f8f8;
+      flex-shrink: 0;
+    }
+    .part-item-info { flex: 1; min-width: 0; }
+    .part-item-name {
+      font-size: 14px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .part-item-sub {
+      font-size: 12px;
+      color: #888;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin-top: 2px;
+    }
+    .part-item-color-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      border: 1px solid rgba(0,0,0,.12);
+    }
+    .part-item-qty {
+      font-size: 15px;
+      font-weight: 700;
+      color: #e63946;
+      flex-shrink: 0;
+      min-width: 28px;
+      text-align: right;
+    }
+
     /* ── Screen 4: Success ── */
     #screen-success { padding: 64px 20px; align-items: center; gap: 16px; text-align: center; }
     .success-icon { font-size: 72px; }
@@ -384,6 +432,7 @@
 <div class="mode-tabs">
   <button class="mode-tab active" data-mode="parts" onclick="switchMode('parts')">🧱 Parts</button>
   <button class="mode-tab" data-mode="minifigs" onclick="switchMode('minifigs')">👤 Minifigs</button>
+  <button class="mode-tab" data-mode="lists" onclick="switchMode('lists')">📋 Lists</button>
 </div>
 
 <!-- Screen 1: Scan -->
@@ -419,6 +468,19 @@
     <p style="margin:0;font-size:13px;color:#888;line-height:1.4;">
       Minifig tracking isn't available via the Rebrickable API — use the link above to view it on Rebrickable directly.
     </p>
+  </div>
+</div>
+
+<!-- Screen: Lists browser -->
+<div class="screen" id="screen-lists">
+  <div style="padding:16px 16px 8px;">
+    <select id="listsViewSelect" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:10px;font-size:15px;background:#fff;" onchange="loadListContents()">
+      <option value="">Select a list…</option>
+    </select>
+  </div>
+  <div id="listPartsGrid" style="padding:0 16px 24px;"></div>
+  <div id="listLoadMore" style="display:none;text-align:center;padding:0 16px 24px;">
+    <button onclick="loadMoreListParts()" style="padding:10px 24px;background:#e63946;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;">Load More</button>
   </div>
 </div>
 
@@ -530,6 +592,15 @@
     document.getElementById('scanHint').textContent = m === 'parts'
       ? 'Take a photo of a LEGO part to identify it and add it to your parts list.'
       : 'Take a photo of a LEGO minifigure to identify it and add it to your minifig list.';
+    // Switch between scan screen and lists browser
+    if (m === 'lists') {
+      document.getElementById('screen-scan').classList.remove('active');
+      document.getElementById('screen-lists').classList.add('active');
+      populateListsViewSelect();
+    } else if (document.getElementById('screen-lists').classList.contains('active')) {
+      document.getElementById('screen-lists').classList.remove('active');
+      document.getElementById('screen-scan').classList.add('active');
+    }
   }
 
   // ── Parts lists ─────────────────────────────────────────────────────
@@ -1301,6 +1372,82 @@
   function goTo(id) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(id).classList.add('active');
+  }
+
+  // ── Lists browser ──────────────────────────────────────────────────────
+  let _listPage = 1, _listTotal = 0, _listLoaded = 0;
+
+  function populateListsViewSelect() {
+    fetch('/api/partlists').then(r => r.json()).then(data => {
+      const sel = document.getElementById('listsViewSelect');
+      const prev = sel.value;
+      sel.innerHTML = '<option value="">Select a list…</option>';
+      data.results.forEach(l => {
+        const o = document.createElement('option');
+        o.value = l.id;
+        o.textContent = `${l.name} (${l.num_parts} parts)`;
+        if (l.id == prev) o.selected = true;
+        sel.appendChild(o);
+      });
+      if (!prev && data.results.length) {
+        sel.value = data.results[0].id;
+        loadListContents();
+      } else if (prev) loadListContents();
+    });
+  }
+
+  function loadListContents() {
+    const listId = document.getElementById('listsViewSelect').value;
+    if (!listId) { document.getElementById('listPartsGrid').innerHTML = ''; return; }
+    _listPage = 1; _listLoaded = 0;
+    document.getElementById('listPartsGrid').innerHTML =
+      '<p style="color:#aaa;text-align:center;padding:24px 0">Loading…</p>';
+    document.getElementById('listLoadMore').style.display = 'none';
+    fetchListPage(listId, 1, true);
+  }
+
+  function loadMoreListParts() {
+    const listId = document.getElementById('listsViewSelect').value;
+    if (!listId) return;
+    fetchListPage(listId, ++_listPage, false);
+  }
+
+  function fetchListPage(listId, page, replace) {
+    fetch(`/api/partlists/${listId}/parts?page=${page}`)
+      .then(r => r.json())
+      .then(data => {
+        _listTotal = data.count || 0;
+        const parts = data.results || [];
+        _listLoaded += parts.length;
+        const html = parts.map(p => {
+          const img = p.part?.part_img_url || '';
+          const name = p.part?.name || p.part?.part_num || '?';
+          const rgb = p.color?.rgb || 'ccc';
+          const colorName = p.color?.name || '';
+          const qty = p.quantity || 1;
+          return `<div class="part-item">
+            ${img ? `<img src="${img}" onerror="this.style.display='none'" loading="lazy">` :
+                    `<div style="width:56px;height:56px;border-radius:8px;background:#f0f0f0;flex-shrink:0"></div>`}
+            <div class="part-item-info">
+              <div class="part-item-name">${name}</div>
+              <div class="part-item-sub">
+                <span class="part-item-color-dot" style="background:#${rgb}"></span>
+                <span>${colorName}</span>
+              </div>
+            </div>
+            <div class="part-item-qty">×${qty}</div>
+          </div>`;
+        }).join('');
+        const grid = document.getElementById('listPartsGrid');
+        if (replace) grid.innerHTML = html;
+        else grid.insertAdjacentHTML('beforeend', html);
+        const lm = document.getElementById('listLoadMore');
+        lm.style.display = _listLoaded < _listTotal ? 'block' : 'none';
+      })
+      .catch(() => {
+        if (replace) document.getElementById('listPartsGrid').innerHTML =
+          '<p style="color:#c00;text-align:center;padding:24px 0">Failed to load.</p>';
+      });
   }
 </script>
 </body>
