@@ -103,7 +103,7 @@ def identify():
                                     rb_id = results2[0]["set_num"]
                 except Exception:
                     pass
-                img_url = f"https://storage.googleapis.com/brickognize-static/thumbnails/v2.22/minifig/{bl_id}/0.webp"
+                img_url = f"https://img.bricklink.com/ItemImage/MN/0/{bl_external_id}.png"
             else:
                 try:
                     rb_resp = requests.get(
@@ -117,7 +117,7 @@ def identify():
                             rb_id = results[0]["part_num"]
                 except Exception:
                     pass
-                img_url = f"https://storage.googleapis.com/brickognize-static/thumbnails/v2.22/part/{bl_id}/0.webp"
+                img_url = f"https://img.bricklink.com/ItemImage/PN/0/{bl_external_id}.png"
 
             # Build candidate_colors with Rebrickable IDs (parts only)
             rb_colors = []
@@ -231,6 +231,15 @@ def create_partlist():
         f"{RB_BASE}/users/{USER_TOKEN}/partlists/",
         params={"key": API_KEY},
         data={"name": name},
+    )
+    return jsonify(resp.json()), resp.status_code
+
+
+@app.route("/api/minifig_sets/<set_num>")
+def get_minifig_sets(set_num):
+    resp = requests.get(
+        f"{RB_BASE}/lego/minifigs/{set_num}/sets/",
+        params={"key": API_KEY, "page_size": 30},
     )
     return jsonify(resp.json()), resp.status_code
 

@@ -236,6 +236,38 @@
     .color-option:hover { background: #f9f9f9; }
     .color-swatch { width: 18px; height: 18px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.12); flex-shrink: 0; }
 
+    /* ── Minifig sets ── */
+    .sets-section {
+      background: #fff;
+      margin-top: 8px;
+      padding: 12px 16px 4px;
+    }
+    .sets-label {
+      font-size: 12px; color: #aaa;
+      text-transform: uppercase; letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+    .set-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid #f0f0f0;
+      text-decoration: none;
+      color: inherit;
+    }
+    .set-row:last-child { border-bottom: none; }
+    .set-thumb {
+      width: 72px; height: 54px;
+      object-fit: contain;
+      background: #f8f8f8;
+      border-radius: 6px;
+      flex-shrink: 0;
+    }
+    .set-info { flex: 1; min-width: 0; }
+    .set-name { font-size: 14px; font-weight: 600; color: #111; line-height: 1.3; }
+    .set-meta { font-size: 12px; color: #888; margin-top: 2px; }
+
     /* Alternatives */
     .alt-section {
       background: #fff;
@@ -450,6 +482,12 @@
         <div class="color-dropdown" id="colorDropdown"></div>
       </div>
     </div>
+  </div>
+
+  <!-- Minifig sets -->
+  <div class="sets-section" id="setsSection" style="display:none">
+    <div class="sets-label" id="setsLabel">Appears in sets</div>
+    <div id="setsList"></div>
   </div>
 
   <!-- Alternative matches -->
@@ -915,6 +953,7 @@
 
     document.getElementById('colorRow').style.display = isMinifig ? 'none' : '';
     document.getElementById('colorSheet').classList.remove('open');
+    document.getElementById('setsSection').style.display = 'none';
     document.getElementById('addBtn').textContent = isMinifig ? 'Add to Minifig List' : 'Add to List';
     if (!isMinifig) resetColor();
   }
@@ -943,7 +982,17 @@
     populateCardInfo(items[0]);
 
     if (items[0].type === 'minifig') {
-      // No color detection for minifigs — show alts and return
+      // No color detection for minifigs
+      document.getElementById('setsSection').style.display = 'none';
+      document.getElementById('setsList').innerHTML =
+        '<span style="color:#aaa;font-size:13px">Loading sets…</span>';
+      document.getElementById('setsSection').style.display = 'block';
+
+      fetch(`/api/minifig_sets/${items[0].id}`)
+        .then(r => r.json())
+        .then(data => renderMinifigSets(data))
+        .catch(() => { document.getElementById('setsSection').style.display = 'none'; });
+
       const alts = items.slice(1, 5).filter(i => i.type === 'minifig');
       if (alts.length) {
         document.getElementById('altSection').style.display = 'block';
@@ -1233,6 +1282,25 @@
       goTo('screen-success');
     })
     .catch(() => { err.textContent = 'Network error.'; err.style.display = 'block'; });
+  }
+
+  function renderMinifigSets(data) {
+    const sets = data.results || [];
+    const section = document.getElementById('setsSection');
+    if (!sets.length) { section.style.display = 'none'; return; }
+    const total = data.count || sets.length;
+    document.getElementById('setsLabel').textContent =
+      `Appears in ${total} set${total !== 1 ? 's' : ''}`;
+    document.getElementById('setsList').innerHTML = sets.map(s => `
+      <a class="set-row" href="https://rebrickable.com/sets/${s.set_num}/" target="_blank">
+        ${s.set_img_url
+          ? `<img class="set-thumb" src="${s.set_img_url}" onerror="this.style.display='none'">`
+          : '<div class="set-thumb"></div>'}
+        <div class="set-info">
+          <div class="set-name">${s.name}</div>
+          <div class="set-meta">${s.set_num} &middot; ${s.year}</div>
+        </div>
+      </a>`).join('');
   }
 
   function goTo(id) {
