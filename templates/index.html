@@ -1858,6 +1858,7 @@
   function renderSwatches(partColors) {
     const container = document.getElementById('colorSwatches');
     if (!partColors.length) { container.innerHTML = ''; return; }
+    console.log('Sample color object:', partColors[0]);
     partColors.sort((a, b) => (b.num_sets || 0) - (a.num_sets || 0));
     const colorMap = Object.fromEntries(colors.map(c => [c.id, c.rgb]));
     container.innerHTML = partColors.map(c => {
@@ -2250,14 +2251,19 @@
       section.style.display = 'none';
       return;
     }
-    // Show the section even if num_sets is 0/undefined (for testing/debugging)
+    // Find the selected color in currentPartColors to see all available fields
+    const selectedColor = currentPartColors.find(c => c.color_id === selectedColorId);
     const label = document.getElementById('setsLabel');
-    if (selectedColorNumSets && selectedColorNumSets > 0) {
-      label.textContent = `Appears in ${selectedColorNumSets} set${selectedColorNumSets !== 1 ? 's' : ''}`;
+
+    if (selectedColor) {
+      // Show all fields available in the color object for debugging
+      const fields = Object.keys(selectedColor).join(', ');
+      label.textContent = `Fields: ${fields}`;
+      setsList.innerHTML = `<div style="font-size:12px;color:#aaa;padding:8px;">${JSON.stringify(selectedColor, null, 2)}</div>`;
     } else {
-      label.textContent = `Set count: ${selectedColorNumSets || 'N/A'}`;
+      label.textContent = 'Color not found';
+      setsList.innerHTML = '';
     }
-    setsList.innerHTML = '';
     section.style.display = 'block';
   }
 
