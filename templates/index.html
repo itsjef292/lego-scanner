@@ -1820,13 +1820,22 @@
       const d = data[cond];
       if (!d || !d.avg_price) continue;
 
+      // Build inventory availability info
+      let inventoryHtml = '<div class="price-availability" style="color: #0072CE; font-size: 13px; margin-top: 4px;">';
+      if (d.available_quantity !== undefined) {
+        inventoryHtml += `${d.available_quantity} unit${d.available_quantity !== 1 ? 's' : ''} in stock`;
+      } else {
+        inventoryHtml += 'Available on BrickLink';
+      }
+      inventoryHtml += '</div>';
+
       cards.push(`
         <div class="price-card">
           <div class="price-card-title">${label}</div>
           <div class="price-avg">${fmt(d.avg_price)}</div>
           <div class="price-range">${fmt(d.min_price)} – ${fmt(d.max_price)}</div>
           <div class="price-sales">${d.unit_quantity || 0} sales</div>
-          <div class="price-availability" style="color: #0072CE; font-size: 13px; margin-top: 4px;">Available on BrickLink</div>
+          ${inventoryHtml}
         </div>`);
     }
     if (!cards.length) return;

@@ -463,6 +463,28 @@ def get_minifig_price(fig_id):
         if price_resp.status_code == 200:
             results[condition] = price_resp.json().get("data", {})
 
+        # Get available inventory count for this condition
+        try:
+            inv_resp = requests.get(
+                f"https://api.bricklink.com/api/store/v1/inventories",
+                params={
+                    "item_type": "MINIFIG",
+                    "item_id": fig_id,
+                    "new_or_used": condition,
+                    "status": "available",
+                },
+                auth=auth,
+                timeout=8,
+            )
+            if inv_resp.status_code == 200:
+                inv_data = inv_resp.json()
+                listings = inv_data.get("data", [])
+                # Sum quantities from all available listings
+                total_available = sum(item.get("quantity", 0) for item in listings)
+                if results.get(condition):
+                    results[condition]["available_quantity"] = total_available
+        except Exception as e:
+            pass  # Gracefully skip if inventory fetch fails
 
     # Add category to results
     if category:
