@@ -656,7 +656,7 @@
   </div>
 
   <!-- Parts list selector -->
-  <div id="partListRow" class="list-selector" style="padding:0 20px 24px;">
+  <div id="partListRow" class="list-selector" style="padding:0 20px 24px;display:none;">
     <label>Add to parts list</label>
     <div style="display:flex;gap:8px;align-items:center;">
       <select id="listSelect" style="flex:1" onchange="checkInventoryStatus()"><option value="">Loading...</option></select>
@@ -1743,39 +1743,30 @@
       return;
     }
 
-    // Check if a default list is selected
-    const listSelect = document.getElementById('listSelect');
-    const defaultListId = listSelect && listSelect.value ? listSelect.value : null;
+    // Always show the list picker modal
+    fetch('/api/partlists')
+      .then(r => r.json())
+      .then(data => {
+        const lists = data.results || [];
+        const select = document.getElementById('selectPartListSelect');
 
-    if (defaultListId) {
-      // If a default list is selected, add directly to it
-      addPartToList(defaultListId);
-    } else {
-      // If no default list, show picker modal
-      fetch('/api/partlists')
-        .then(r => r.json())
-        .then(data => {
-          const lists = data.results || [];
-          const select = document.getElementById('selectPartListSelect');
-
-          if (!lists.length) {
-            err.textContent = 'Please create a parts list first.';
-            err.style.display = 'block';
-            return;
-          }
-
-          select.innerHTML = lists.map(l =>
-            `<option value="${l.id}">${l.name} (${l.num_parts} parts)</option>`
-          ).join('');
-
-          // Show the modal
-          document.getElementById('selectPartListModal').style.display = 'flex';
-        })
-        .catch(() => {
-          err.textContent = 'Failed to load lists.';
+        if (!lists.length) {
+          err.textContent = 'Please create a parts list first.';
           err.style.display = 'block';
-        });
-    }
+          return;
+        }
+
+        select.innerHTML = lists.map(l =>
+          `<option value="${l.id}">${l.name} (${l.num_parts} parts)</option>`
+        ).join('');
+
+        // Show the modal
+        document.getElementById('selectPartListModal').style.display = 'flex';
+      })
+      .catch(() => {
+        err.textContent = 'Failed to load lists.';
+        err.style.display = 'block';
+      });
   }
 
   function addPartToList(listId, fromModal = false) {
