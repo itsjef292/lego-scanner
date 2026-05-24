@@ -245,6 +245,39 @@ def get_part_colors(part_num):
     return jsonify(resp.json()), resp.status_code
 
 
+@app.route("/api/part_in_lists/<part_num>/<int:color_id>")
+def get_part_in_lists(part_num, color_id):
+    """Fetch all lists containing a specific part/color with quantities."""
+    try:
+        # Get all user's lists
+        lists_resp = requests.get(
+            f"{RB_BASE}/users/{USER_TOKEN}/partlists/",
+            params={"key": API_KEY},
+        )
+        lists_data = lists_resp.json()
+        lists = lists_data.get("results", [])
+
+        # For each list, check if the part exists
+        lists_with_part = []
+        for lst in lists:
+            part_resp = requests.get(
+                f"{RB_BASE}/users/{USER_TOKEN}/partlists/{lst['id']}/parts/{part_num}/{color_id}/",
+                params={"key": API_KEY},
+                timeout=5,
+            )
+            if part_resp.status_code == 200:
+                part_data = part_resp.json()
+                lists_with_part.append({
+                    "list_id": lst["id"],
+                    "list_name": lst["name"],
+                    "quantity": part_data.get("quantity", 0)
+                })
+
+        return jsonify({"results": lists_with_part}), 200
+    except Exception as e:
+        print(f"Error fetching part in lists: {e}")
+        return jsonify({"error": str(e), "results": []}), 500
+
 
 @app.route("/api/add_part", methods=["POST"])
 def add_part():

@@ -656,7 +656,7 @@
   </div>
 
   <!-- Parts list selector -->
-  <div id="partListRow" class="list-selector" style="padding:0 20px 24px;display:none;">
+  <div id="partListRow" class="list-selector" style="padding:0 20px 24px;">
     <label>Add to parts list</label>
     <div style="display:flex;gap:8px;align-items:center;">
       <select id="listSelect" style="flex:1" onchange="checkInventoryStatus()"><option value="">Loading...</option></select>
@@ -802,6 +802,12 @@
       <span class="inventory-status-text" id="inventoryStatusText">Already in inventory</span>
       <button class="inventory-remove-btn" id="removeOneBtn" onclick="removeOnePart()">Remove 1</button>
     </div>
+
+    <!-- Lists containing part -->
+    <div id="partListsSection" style="display:none;border-top:1px solid #444;margin-top:16px;padding-top:16px;">
+      <div style="font-size:12px;color:#fff;margin-bottom:8px;margin-left:12px;">Found in:</div>
+      <div id="partListsGrid" style="display:grid;grid-template-columns:1fr;gap:8px;"></div>
+    </div>
   </div>
 
   <!-- Minifig price -->
@@ -818,9 +824,13 @@
 
   <!-- Minifig parts -->
   <div class="parts-section" id="partsSection" style="display:none">
-    <div class="parts-label" id="partsLabel">Parts</div>
-    <div class="parts-list" id="partsList"></div>
-    <button class="btn" id="addAllPartsBtn" onclick="showAddPartsListPicker()" style="margin:16px auto;display:block;">Add All Parts to List</button>
+    <div style="cursor:pointer;user-select:none;padding:12px 0;display:flex;align-items:center;gap:8px;border-bottom:1px solid #444;" onclick="togglePartsSection()">
+      <span id="partsToggleArrow" style="display:inline-block;transition:transform 0.2s;font-size:16px;">▶</span>
+      <div class="parts-label" id="partsLabel" style="margin:0;">Parts</div>
+    </div>
+    <div id="partsContent" style="display:none;padding-top:12px;">
+      <div class="parts-list" id="partsList"></div>
+    </div>
   </div>
 
   <!-- List picker modal for parts add -->
@@ -830,6 +840,14 @@
       <select id="selectPartListSelect" style="width:100%;padding:12px;background:#222;color:#fff;border:1px solid #444;border-radius:8px;margin-bottom:16px;font-size:14px;">
         <option value="">Loading lists...</option>
       </select>
+      <button onclick="togglePartListCreateForm()" style="width:100%;padding:10px;background:#222;color:#0072CE;border:1px solid #444;border-radius:8px;margin-bottom:16px;font-size:14px;font-weight:600;cursor:pointer;">+ Create New List</button>
+      <div id="partListCreateForm" style="display:none;margin-bottom:16px;gap:8px;align-items:center;">
+        <input id="partListNewName" type="text" placeholder="List name…"
+          style="width:100%;padding:10px 12px;border:1px solid #444;border-radius:8px;font-size:14px;background:#222;color:#fff;margin-bottom:8px;"
+          onkeydown="if(event.key==='Enter')createPartListFromModal()">
+        <button onclick="createPartListFromModal()"
+          style="width:100%;padding:10px;background:#0072CE;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">Create</button>
+      </div>
       <div style="display:flex;gap:8px;justify-content:flex-end;">
         <button class="btn secondary" onclick="document.getElementById('selectPartListModal').style.display='none'" style="margin:0;">Cancel</button>
         <button class="btn" onclick="addPartToSelectedList()" style="margin:0;">Add</button>
@@ -844,6 +862,14 @@
       <select id="addPartsListSelect" style="width:100%;padding:12px;background:#222;color:#fff;border:1px solid #444;border-radius:8px;margin-bottom:16px;font-size:14px;">
         <option value="">Loading lists...</option>
       </select>
+      <button onclick="toggleMinifigPartListCreateForm()" style="width:100%;padding:10px;background:#222;color:#0072CE;border:1px solid #444;border-radius:8px;margin-bottom:16px;font-size:14px;font-weight:600;cursor:pointer;">+ Create New List</button>
+      <div id="minifigPartListCreateForm" style="display:none;margin-bottom:16px;gap:8px;align-items:center;">
+        <input id="minifigPartListNewName" type="text" placeholder="List name…"
+          style="width:100%;padding:10px 12px;border:1px solid #444;border-radius:8px;font-size:14px;background:#222;color:#fff;margin-bottom:8px;"
+          onkeydown="if(event.key==='Enter')createMinifigPartListFromModal()">
+        <button onclick="createMinifigPartListFromModal()"
+          style="width:100%;padding:10px;background:#0072CE;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">Create</button>
+      </div>
       <div style="display:flex;gap:8px;justify-content:flex-end;">
         <button class="btn secondary" onclick="document.getElementById('addPartsListModal').style.display='none'" style="margin:0;">Cancel</button>
         <button class="btn" onclick="addMinifigPartsToSelected()" style="margin:0;">Add Parts</button>
@@ -862,13 +888,16 @@
 
   <!-- Actions -->
   <div class="action-area">
-    <div class="qty-row">
-      <label>Quantity</label>
-      <div class="qty-controls">
-        <button onclick="adjustQty(-1)">−</button>
-        <input type="number" id="quantityInput" value="1" min="1" max="999">
-        <button onclick="adjustQty(1)">+</button>
+    <div class="qty-row" id="qtyRow" style="display:flex;align-items:flex-end;gap:12px;">
+      <div style="flex:1;">
+        <label>Quantity</label>
+        <div class="qty-controls">
+          <button onclick="adjustQty(-1)">−</button>
+          <input type="number" id="quantityInput" value="1" min="1" max="999">
+          <button onclick="adjustQty(1)">+</button>
+        </div>
       </div>
+      <button class="btn green" id="addAllPartsBtn" onclick="showAddPartsListPicker()" style="display:none;margin-bottom:0;">Add Parts</button>
     </div>
     <button class="btn green" id="addBtn" onclick="addItem()">Add to List</button>
     <button class="btn secondary" onclick="goTo('screen-scan')">Retake Photo</button>
@@ -939,6 +968,13 @@
       .then(data => {
         const sel = document.getElementById('listSelect');
         sel.innerHTML = '';
+        // Add blank option for no selection
+        const blankOpt = document.createElement('option');
+        blankOpt.value = '';
+        blankOpt.textContent = 'No list selected';
+        if (!selectId) blankOpt.selected = true;
+        sel.appendChild(blankOpt);
+        // Add all lists
         data.results.forEach(list => {
           const opt = document.createElement('option');
           opt.value = list.id;
@@ -984,6 +1020,73 @@
         document.getElementById('newListRow').style.display = 'none';
         document.getElementById('newListName').value = '';
         loadPartlists(data.id);
+      }
+    });
+  }
+
+  // ── Modal list creation functions ────────────────────────────────────
+  function togglePartListCreateForm() {
+    const form = document.getElementById('partListCreateForm');
+    const visible = form.style.display === 'flex';
+    form.style.display = visible ? 'none' : 'flex';
+    if (!visible) document.getElementById('partListNewName').focus();
+  }
+
+  function createPartListFromModal() {
+    const name = document.getElementById('partListNewName').value.trim();
+    if (!name) return;
+    fetch('/api/partlists', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.id) {
+        document.getElementById('partListCreateForm').style.display = 'none';
+        document.getElementById('partListNewName').value = '';
+        // Reload the dropdown and select the new list
+        fetch('/api/partlists')
+          .then(r => r.json())
+          .then(listData => {
+            const select = document.getElementById('selectPartListSelect');
+            select.innerHTML = listData.results.map(l =>
+              `<option value="${l.id}" ${l.id === data.id ? 'selected' : ''}>${l.name} (${l.num_parts} parts)</option>`
+            ).join('');
+          });
+      }
+    });
+  }
+
+  function toggleMinifigPartListCreateForm() {
+    const form = document.getElementById('minifigPartListCreateForm');
+    const visible = form.style.display === 'flex';
+    form.style.display = visible ? 'none' : 'flex';
+    if (!visible) document.getElementById('minifigPartListNewName').focus();
+  }
+
+  function createMinifigPartListFromModal() {
+    const name = document.getElementById('minifigPartListNewName').value.trim();
+    if (!name) return;
+    fetch('/api/partlists', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.id) {
+        document.getElementById('minifigPartListCreateForm').style.display = 'none';
+        document.getElementById('minifigPartListNewName').value = '';
+        // Reload the dropdown and select the new list
+        fetch('/api/partlists')
+          .then(r => r.json())
+          .then(listData => {
+            const select = document.getElementById('addPartsListSelect');
+            select.innerHTML = listData.results.map(l =>
+              `<option value="${l.id}" ${l.id === data.id ? 'selected' : ''}>${l.name} (${l.num_parts} parts)</option>`
+            ).join('');
+          });
       }
     });
   }
@@ -1347,11 +1450,14 @@
     document.getElementById('setsSection').style.display = 'none';
     document.getElementById('priceSection').style.display = 'none';
     const addBtn = document.getElementById('addBtn');
+    const addPartsBtn = document.getElementById('addAllPartsBtn');
     if (isMinifig) {
-      addBtn.textContent = 'View on Rebrickable';
-      addBtn.onclick = () => window.open(`https://rebrickable.com/minifigs/${item.id}/`, '_blank');
+      addBtn.style.display = 'none';
+      addPartsBtn.style.display = '';
       renderInventoryStatus(0, 'hidden');
     } else {
+      addBtn.style.display = '';
+      addPartsBtn.style.display = 'none';
       addBtn.textContent = 'Add to List';
       addBtn.onclick = addItem;
       renderInventoryStatus(0, 'needs-color');
@@ -1437,6 +1543,77 @@
     } catch {
       if (token !== inventoryCheckToken) return;
       renderInventoryStatus(0, 'error');
+    }
+  }
+
+  async function fetchPartInLists() {
+    const section = document.getElementById('partListsSection');
+    const grid = document.getElementById('partListsGrid');
+
+    if (!selectedPart || selectedPart.type === 'minifig' || !selectedColorId && selectedColorId !== 0) {
+      section.style.display = 'none';
+      return;
+    }
+
+    try {
+      const partNum = encodeURIComponent(selectedPart.id);
+      const resp = await fetch(`/api/part_in_lists/${partNum}/${selectedColorId}`);
+      const data = await resp.json();
+
+      if (resp.ok && data.results && data.results.length > 0) {
+        grid.innerHTML = data.results.map(item =>
+          `<div style="padding:10px;background:#222;border-radius:8px;border:1px solid #444;display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div style="font-size:13px;color:#fff;">${item.list_name}</div>
+              <div style="font-size:11px;color:#aaa;">Qty: <span class="list-qty-${item.list_id}">${item.quantity}</span></div>
+            </div>
+            <div style="display:flex;gap:6px;">
+              <button onclick="quickAddPartToList(${item.list_id})" style="width:28px;height:28px;border:1px solid #444;background:#222;color:#0072CE;border-radius:6px;font-size:16px;cursor:pointer;font-weight:bold;">+</button>
+              <button onclick="quickRemovePartFromList(${item.list_id})" style="width:28px;height:28px;border:1px solid #f00;background:#3a1618;color:#ffb8bf;border-radius:6px;font-size:16px;cursor:pointer;font-weight:bold;">−</button>
+            </div>
+          </div>`
+        ).join('');
+        section.style.display = 'block';
+      } else {
+        section.style.display = 'none';
+      }
+    } catch (e) {
+      console.error('Error fetching part in lists:', e);
+      section.style.display = 'none';
+    }
+  }
+
+  async function quickAddPartToList(listId) {
+    try {
+      const qty = 1;
+      const resp = await fetch('/api/add_part', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ list_id: listId, part_num: selectedPart.id, color_id: selectedColorId, quantity: qty })
+      });
+      const data = await resp.json();
+      if (resp.ok && data.quantity !== undefined) {
+        document.querySelector(`.list-qty-${listId}`).textContent = data.quantity;
+      }
+    } catch (e) {
+      console.error('Error adding part:', e);
+    }
+  }
+
+  async function quickRemovePartFromList(listId) {
+    try {
+      const resp = await fetch('/api/remove_part_one', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ list_id: listId, part_num: selectedPart.id, color_id: selectedColorId })
+      });
+      const data = await resp.json();
+      if (resp.ok) {
+        // Refresh the lists display
+        fetchPartInLists();
+      }
+    } catch (e) {
+      console.error('Error removing part:', e);
     }
   }
 
@@ -1652,6 +1829,7 @@
       b.classList.toggle('selected', parseInt(b.dataset.colorId) === id);
     });
     checkInventoryStatus();
+    fetchPartInLists();
   }
 
   function resetColor() {
@@ -1664,6 +1842,7 @@
     document.querySelectorAll('.swatch-btn').forEach(b => b.classList.remove('selected'));
     if (selectedPart?.type === 'part') renderInventoryStatus(0, 'needs-color');
     else renderInventoryStatus(0, 'hidden');
+    document.getElementById('partListsSection').style.display = 'none';
   }
 
   function toggleColorSheet() {
@@ -1743,7 +1922,15 @@
       return;
     }
 
-    // Always show the list picker modal
+    // Check if a list is already selected on the scan screen
+    const selectedListId = document.getElementById('listSelect').value;
+    if (selectedListId) {
+      // List is selected, add directly without showing modal
+      addPartToList(selectedListId, false);
+      return;
+    }
+
+    // No list selected, show the picker modal
     fetch('/api/partlists')
       .then(r => r.json())
       .then(data => {
@@ -2089,17 +2276,31 @@
         `https://cdn.rebrickable.com/media/parts/photos/${partNum}.jpg`;
 
       return `
-        <div class="parts-card" style="display:inline-block;width:calc(50%-8px);margin:4px;padding:12px;background:#1a1a1a;border:1px solid #444;border-radius:8px;text-align:center;vertical-align:top;">
-          <div style="width:80px;height:80px;margin:0 auto 8px;background:#222;border-radius:4px;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+        <div class="parts-card" style="display:flex;width:100%;margin-bottom:8px;padding:12px;background:#1a1a1a;border:1px solid #444;border-radius:8px;gap:12px;align-items:flex-start;">
+          <div style="flex-shrink:0;width:70px;height:70px;background:#222;border-radius:4px;display:flex;align-items:center;justify-content:center;overflow:hidden;">
             <img src="${partImgUrl}" alt="${partName}" style="max-width:100%;max-height:100%;object-fit:contain;" onerror="this.parentElement.style.background='#333'">
           </div>
-          <div style="font-size:12px;font-weight:500;margin-bottom:4px;color:#fff;word-break:break-word;max-height:40px;overflow:hidden;">${partName}</div>
-          <div style="font-size:11px;color:#aaa;margin-bottom:4px;">${partNum}</div>
-          <div style="font-size:11px;color:#0072CE;font-weight:500;">${colorName}</div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:12px;font-weight:500;margin-bottom:4px;color:#fff;word-break:break-word;">${partName}</div>
+            <div style="font-size:11px;color:#aaa;margin-bottom:4px;">${partNum}</div>
+            <div style="font-size:11px;color:#0072CE;font-weight:500;">${colorName}</div>
+          </div>
         </div>`;
     }).join('');
 
     section.style.display = 'block';
+    // Reset parts section to collapsed state
+    document.getElementById('partsContent').style.display = 'none';
+    document.getElementById('partsToggleArrow').style.transform = 'rotate(0deg)';
+  }
+
+  function togglePartsSection() {
+    const content = document.getElementById('partsContent');
+    const arrow = document.getElementById('partsToggleArrow');
+    const isHidden = content.style.display === 'none';
+
+    content.style.display = isHidden ? 'block' : 'none';
+    arrow.style.transform = isHidden ? 'rotate(90deg)' : 'rotate(0deg)';
   }
 
   // Store parts data globally for bulk add
