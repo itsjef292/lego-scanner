@@ -18,6 +18,7 @@ BL_TOKEN_SECRET    = os.environ.get("BL_TOKEN_SECRET", "")
 API_KEY = os.environ.get("REBRICKABLE_API_KEY", "")
 USER_TOKEN = os.environ.get("REBRICKABLE_USER_TOKEN", "")
 RB_BASE = "https://rebrickable.com/api/v3"
+PART_COLOR_IMAGE_CACHE = {}
 
 
 @app.route("/")
@@ -175,7 +176,54 @@ def get_partlist_parts(list_id):
         f"{RB_BASE}/users/{USER_TOKEN}/partlists/{list_id}/parts/",
         params={"key": API_KEY, "page_size": 50, "page": page},
     )
-    return jsonify(resp.json()), resp.status_code
+    data = resp.json()
+    if resp.status_code == 200:
+        for item in data.get("results", []):
+            part_num = (item.get("part") or {}).get("part_num")
+            color_id = (item.get("color") or {}).get("id")
+            img_url = _part_color_img_url(part_num, color_id)
+            if img_url:
+                item["_accurate_img_url"] = img_url
+    return jsonify(data), resp.status_code
+
+
+def _part_color_img_url(part_num, color_id):
+    if not part_num or color_id is None:
+        return None
+    cache_key = (part_num, int(color_id))
+    if cache_key in PART_COLOR_IMAGE_CACHE:
+        return PART_COLOR_IMAGE_CACHE[cache_key]
+
+    img_url = None
+    try:
+        resp = requests.get(
+            f"{RB_BASE}/lego/parts/{part_num}/colors/",
+            params={"key": API_KEY, "page_size": 100},
+            timeout=5,
+        )
+        if resp.status_code == 200:
+            for color in resp.json().get("results", []):
+                if color.get("color_id") == int(color_id):
+                    img_url = color.get("part_img_url")
+                    break
+    except requests.exceptions.RequestException:
+        img_url = None
+
+    PART_COLOR_IMAGE_CACHE[cache_key] = img_url
+    return img_url
+
+
+@app.route("/api/partlists/<int:list_id>/parts/<part_num>/<int:color_id>")
+def get_partlist_part(list_id, part_num, color_id):
+    resp = requests.get(
+        f"{RB_BASE}/users/{USER_TOKEN}/partlists/{list_id}/parts/{part_num}/{color_id}/",
+        params={"key": API_KEY},
+    )
+    if resp.status_code == 404:
+        return jsonify({"quantity": 0, "_exists": False}), 200
+    data = resp.json()
+    data["_exists"] = True
+    return jsonify(data), resp.status_code
 
 
 @app.route("/api/part/<part_num>")
@@ -234,6 +282,45 @@ def add_part():
         )
         print(f"[add_part] POST {resp.status_code}: {resp.text[:200]}")
         return jsonify(resp.json()), resp.status_code
+
+
+@app.route("/api/remove_part_one", methods=["POST"])
+def remove_part_one():
+    data = request.json
+    list_id = data["list_id"]
+    part_num = data["part_num"]
+    color_id = data["color_id"]
+
+    item_url = f"{RB_BASE}/users/{USER_TOKEN}/partlists/{list_id}/parts/{part_num}/{color_id}/"
+    existing = requests.get(item_url, params={"key": API_KEY})
+
+    print(f"[remove_part_one] list={list_id} part={part_num} color={color_id}")
+
+    if existing.status_code == 404:
+        return jsonify({"error": "Part is not in this list.", "_previous_quantity": 0}), 404
+    if existing.status_code != 200:
+        return jsonify(existing.json()), existing.status_code
+
+    current_qty = int(existing.json().get("quantity", 0))
+    if current_qty <= 1:
+        resp = requests.delete(item_url, params={"key": API_KEY})
+        if resp.status_code == 204:
+            return jsonify({
+                "_deleted": True,
+                "_previous_quantity": current_qty,
+                "quantity": 0,
+            }), 200
+        return jsonify(resp.json()), resp.status_code
+
+    new_qty = current_qty - 1
+    resp = requests.put(item_url, params={"key": API_KEY}, data={"quantity": new_qty})
+    if resp.status_code == 200:
+        result = resp.json()
+        result["_updated"] = True
+        result["_previous_quantity"] = current_qty
+        result["quantity"] = new_qty
+        return jsonify(result), 200
+    return jsonify(resp.json()), resp.status_code
 
 
 @app.route("/api/partlists/<int:list_id>", methods=["DELETE"])
@@ -356,7 +443,10 @@ def get_minifig_price(fig_id):
 if __name__ == "__main__":
     import socket
     hostname = socket.gethostname()
-    local_ip = socket.gethostbyname(hostname)
+    try:
+        local_ip = socket.gethostbyname(hostname)
+    except socket.gaierror:
+        local_ip = "127.0.0.1"
     print(f"\n  Open on your phone: http://{local_ip}:5000\n")
     port = int(os.environ.get("PORT", 5001))
     app.run(host="0.0.0.0", port=port, debug=False)

@@ -79,16 +79,44 @@
     select:focus { outline: none; border-color: #0072CE; }
 
     /* ── Screen 2: Loading ── */
-    #screen-loading { padding: 64px 20px; align-items: center; gap: 16px; }
-    .spinner {
-      width: 44px; height: 44px;
-      border: 4px solid #333;
-      border-top-color: #0072CE;
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
+    #screen-loading {
+      padding: 20px;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      flex: 1;
     }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    #screen-loading p { color: #aaa; font-size: 15px; }
+    .spinner {
+      width: 250px;
+      height: 250px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto;
+      flex-shrink: 0;
+    }
+    .magnifying-glass {
+      width: 100%;
+      height: 100%;
+      max-width: 250px;
+      max-height: 250px;
+    }
+    #loadingText {
+      color: #FFFF00;
+      font-size: 22px;
+      font-weight: 700;
+      padding: 8px 16px;
+      display: inline-block;
+      text-shadow:
+        -2px 0 #000000,
+        2px 0 #000000,
+        0 -2px #000000,
+        0 2px #000000,
+        -2px -2px #000000,
+        2px -2px #000000,
+        -2px 2px #000000,
+        2px 2px #000000;
+    }
 
     /* ── Screen 3: Identify (merged results + details) ── */
     .photo-banner {
@@ -178,6 +206,52 @@
       font-size: 13px;
       color: #aaa;
       cursor: pointer;
+    }
+    .inventory-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 11px 16px;
+      border-bottom: 1px solid #333;
+      background: #171717;
+    }
+    .inventory-row.hidden { display: none; }
+    .inventory-row.found { background: #101a12; }
+    .inventory-check {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: #444;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      font-weight: 800;
+      flex-shrink: 0;
+    }
+    .inventory-row.found .inventory-check { background: #19a64a; }
+    .inventory-status-text {
+      flex: 1;
+      color: #aaa;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .inventory-row.found .inventory-status-text { color: #d8ffe3; }
+    .inventory-remove-btn {
+      background: #3a1618;
+      border: 1px solid #7a3035;
+      color: #ffb8bf;
+      border-radius: 8px;
+      padding: 7px 10px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .inventory-remove-btn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
     }
 
     /* Color sheet */
@@ -461,12 +535,100 @@
       min-width: 28px;
       text-align: right;
     }
+    .part-item-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .list-adjust-btn {
+      background: #3a1618;
+      border: 1px solid #7a3035;
+      color: #ffb8bf;
+      border-radius: 50%;
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      font-size: 20px;
+      line-height: 1;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .list-adjust-btn.add {
+      background: #102819;
+      border-color: #276a3d;
+      color: #c8ffd5;
+    }
+    .list-adjust-btn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+    .list-msg {
+      display: none;
+      margin: 0 16px 10px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: #2a1f1f;
+      border: 1px solid #663333;
+      color: #ffb8bf;
+      font-size: 13px;
+    }
 
     /* ── Screen 4: Success ── */
     #screen-success { padding: 64px 20px; align-items: center; gap: 16px; text-align: center; }
     .success-icon { font-size: 72px; }
     #screen-success h2 { font-size: 22px; font-weight: 700; color: #fff; }
     #screen-success p { color: #aaa; font-size: 14px; line-height: 1.5; }
+
+    /* Image Modal */
+    #imageModal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.95);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      flex-direction: column;
+      gap: 20px;
+    }
+    #imageModal.active {
+      display: flex;
+    }
+    #imageModal img {
+      max-width: 90%;
+      max-height: 70vh;
+      object-fit: contain;
+      border-radius: 12px;
+    }
+    .modal-close-btn {
+      position: relative;
+      background: rgba(255, 255, 255, 0.2);
+      border: none;
+      color: #fff;
+      font-size: 32px;
+      cursor: pointer;
+      width: 50px;
+      height: 50px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      transition: background 0.2s;
+    }
+    .modal-close-btn:active {
+      background: rgba(255, 255, 255, 0.4);
+    }
+    .part-item img {
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -487,7 +649,7 @@
 <!-- Screen 1: Scan -->
 <div class="screen active" id="screen-scan">
   <div class="scan-area" style="margin:20px;border-radius:16px;">
-    <div class="scan-icon">📷</div>
+    <div class="scan-icon">🔍</div>
     <p id="scanHint">Take a photo of a LEGO part to identify it and add it to your parts list.</p>
     <button class="btn" onclick="document.getElementById('cameraInput').click()">Take Photo</button>
     <input type="file" id="cameraInput" accept="image/*" capture="environment">
@@ -497,7 +659,7 @@
   <div id="partListRow" class="list-selector" style="padding:0 20px 24px;">
     <label>Add to parts list</label>
     <div style="display:flex;gap:8px;align-items:center;">
-      <select id="listSelect" style="flex:1"><option value="">Loading...</option></select>
+      <select id="listSelect" style="flex:1" onchange="checkInventoryStatus()"><option value="">Loading...</option></select>
       <button onclick="deleteList()" title="Delete selected list"
         style="flex-shrink:0;width:36px;height:36px;border-radius:50%;border:none;background:#444;color:#fff;font-size:18px;line-height:1;cursor:pointer;">🗑</button>
       <button onclick="toggleNewList()" title="Create new list"
@@ -527,6 +689,7 @@
       <option value="">Select a list…</option>
     </select>
   </div>
+  <div id="listsError" class="list-msg"></div>
   <div id="listPartsGrid" style="padding:0 16px 24px;"></div>
   <div id="listLoadMore" style="display:none;text-align:center;padding:0 16px 24px;">
     <button onclick="loadMoreListParts()" style="padding:10px 24px;background:#0072CE;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;">Load More</button>
@@ -535,8 +698,57 @@
 
 <!-- Screen 2: Loading -->
 <div class="screen" id="screen-loading">
-  <div class="spinner"></div>
-  <p>Identifying part...</p>
+  <div class="spinner">
+    <svg class="magnifying-glass" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">
+      <!-- Define defs for filters first -->
+      <defs>
+        <clipPath id="lensClip">
+          <circle cx="20" cy="20" r="14"/>
+        </clipPath>
+        <filter id="scanGlow">
+          <feGaussianBlur stdDeviation="1.5" result="coloredBlur"/>
+          <feMerge>
+            <feMergeNode in="coloredBlur"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+      </defs>
+
+      <!-- Static LEGO Brick (parts mode) -->
+      <g id="brick-content">
+        <!-- Brick body -->
+        <rect x="8" y="14" width="24" height="12" fill="none" stroke="#0072CE" stroke-width="1.5" opacity="0.6"/>
+        <!-- Studs (typical 2x4 brick configuration) -->
+        <circle cx="11" cy="12" r="1.2" fill="#0072CE" opacity="0.6"/>
+        <circle cx="14" cy="12" r="1.2" fill="#0072CE" opacity="0.6"/>
+        <circle cx="17" cy="12" r="1.2" fill="#0072CE" opacity="0.6"/>
+        <circle cx="20" cy="12" r="1.2" fill="#0072CE" opacity="0.6"/>
+        <circle cx="23" cy="12" r="1.2" fill="#0072CE" opacity="0.6"/>
+        <circle cx="26" cy="12" r="1.2" fill="#0072CE" opacity="0.6"/>
+        <circle cx="29" cy="12" r="1.2" fill="#0072CE" opacity="0.6"/>
+      </g>
+
+      <!-- Static LEGO Minifigure (minifigs mode) -->
+      <g id="minifig-content" style="display:none;">
+        <!-- Head -->
+        <circle cx="20" cy="10" r="3" fill="none" stroke="#0072CE" stroke-width="1.5" opacity="0.6"/>
+        <!-- Torso -->
+        <rect x="17" y="13" width="6" height="7" fill="none" stroke="#0072CE" stroke-width="1.5" opacity="0.6"/>
+        <!-- Left arm -->
+        <line x1="17" y1="15" x2="12" y2="15" stroke="#0072CE" stroke-width="1.5" opacity="0.6"/>
+        <!-- Right arm -->
+        <line x1="23" y1="15" x2="28" y2="15" stroke="#0072CE" stroke-width="1.5" opacity="0.6"/>
+        <!-- Left leg -->
+        <line x1="18" y1="20" x2="18" y2="25" stroke="#0072CE" stroke-width="1.5" opacity="0.6"/>
+        <!-- Right leg -->
+        <line x1="22" y1="20" x2="22" y2="25" stroke="#0072CE" stroke-width="1.5" opacity="0.6"/>
+      </g>
+
+      <!-- Scanning beam (animated rectangle) -->
+      <rect id="scanBeam" x="6" y="5" width="2" height="30" fill="#22C55E" filter="url(#scanGlow)" opacity="0.9"/>
+    </svg>
+  </div>
+  <p id="loadingText">Identifying part...</p>
 </div>
 
 <!-- Screen 3: Identify -->
@@ -580,6 +792,11 @@
         <input type="text" id="colorSearch" placeholder="Search all colors..." autocomplete="off">
         <div class="color-dropdown" id="colorDropdown"></div>
       </div>
+    </div>
+    <div class="inventory-row" id="inventoryRow">
+      <span class="inventory-check">✓</span>
+      <span class="inventory-status-text" id="inventoryStatusText">Already in inventory</span>
+      <button class="inventory-remove-btn" id="removeOneBtn" onclick="removeOnePart()">Remove 1</button>
     </div>
   </div>
 
@@ -633,6 +850,8 @@
   let selectedColorName = '';
   let selectedColorRgb = '';
   let selectedPart = null;
+  let currentInventoryQuantity = 0;
+  let inventoryCheckToken = 0;
   let capturedObjectUrl = null;
   let mode = 'parts'; // 'parts' | 'minifigs'
 
@@ -647,6 +866,22 @@
     document.getElementById('scanHint').textContent = m === 'parts'
       ? 'Take a photo of a LEGO part to identify it and add it to your parts list.'
       : 'Take a photo of a LEGO minifigure to identify it and add it to your minifig list.';
+
+    // Show/hide loading screen content based on mode
+    document.getElementById('brick-content').style.display = m === 'parts' ? '' : 'none';
+    document.getElementById('minifig-content').style.display = m === 'minifigs' ? '' : 'none';
+
+    // If we're on the identify screen and switching modes, go back to scan (unless going to lists)
+    if (document.getElementById('screen-identify').classList.contains('active')) {
+      if (m === 'lists') {
+        // Going to lists, hide identify screen
+        document.getElementById('screen-identify').classList.remove('active');
+      } else {
+        // Switching parts/minifigs, go back to scan
+        goTo('screen-scan');
+      }
+    }
+
     // Switch between scan screen and lists browser
     if (m === 'lists') {
       document.getElementById('screen-scan').classList.remove('active');
@@ -1046,6 +1281,7 @@
     const isMinifig = item.type === 'minifig';
     const blId = isMinifig ? item.bl_id : extractBlId(item);
     selectedPart = { ...item, blId };
+    renderInventoryStatus(0);
 
     document.getElementById('partName').textContent = item.name || item.id;
     document.getElementById('catalogImg').src = item.img_url || '';
@@ -1073,11 +1309,94 @@
     if (isMinifig) {
       addBtn.textContent = 'View on Rebrickable';
       addBtn.onclick = () => window.open(`https://rebrickable.com/minifigs/${item.id}/`, '_blank');
+      renderInventoryStatus(0, 'hidden');
     } else {
       addBtn.textContent = 'Add to List';
       addBtn.onclick = addItem;
+      renderInventoryStatus(0, 'needs-color');
     }
     if (!isMinifig) resetColor();
+  }
+
+  function renderInventoryStatus(quantity, state = 'idle') {
+    currentInventoryQuantity = quantity || 0;
+    const row = document.getElementById('inventoryRow');
+    const check = row?.querySelector('.inventory-check');
+    const text = document.getElementById('inventoryStatusText');
+    const btn = document.getElementById('removeOneBtn');
+    if (!row || !text || !btn) return;
+
+    row.classList.remove('hidden', 'found');
+    btn.style.display = 'none';
+    btn.disabled = false;
+    btn.textContent = 'Remove 1';
+
+    if (state === 'hidden') {
+      row.classList.add('hidden');
+      text.textContent = '';
+      return;
+    }
+
+    if (state === 'needs-color') {
+      if (check) check.textContent = '?';
+      text.textContent = 'Choose a color to check inventory';
+      return;
+    }
+
+    if (state === 'checking') {
+      if (check) check.textContent = '…';
+      text.textContent = 'Checking inventory...';
+      return;
+    }
+
+    if (state === 'error') {
+      if (check) check.textContent = '!';
+      text.textContent = 'Could not check inventory';
+      btn.style.display = 'none';
+      return;
+    }
+
+    if (currentInventoryQuantity > 0) {
+      row.classList.add('found');
+      if (check) check.textContent = '✓';
+      text.textContent = `In inventory: ${currentInventoryQuantity}`;
+      btn.style.display = '';
+      btn.disabled = false;
+      btn.textContent = 'Remove 1';
+    } else {
+      if (check) check.textContent = '–';
+      text.textContent = 'Not in selected list for this color';
+    }
+  }
+
+  async function checkInventoryStatus() {
+    const token = ++inventoryCheckToken;
+    if (!selectedPart || selectedPart.type === 'minifig') {
+      renderInventoryStatus(0, 'hidden');
+      return;
+    }
+    if (!selectedColorId && selectedColorId !== 0) {
+      renderInventoryStatus(0, 'needs-color');
+      return;
+    }
+    const listId = document.getElementById('listSelect').value;
+    if (!listId) {
+      renderInventoryStatus(0, 'hidden');
+      return;
+    }
+
+    renderInventoryStatus(currentInventoryQuantity, 'checking');
+    try {
+      const partNum = encodeURIComponent(selectedPart.id);
+      const colorId = encodeURIComponent(selectedColorId);
+      const resp = await fetch(`/api/partlists/${listId}/parts/${partNum}/${colorId}`);
+      const data = await resp.json();
+      if (token !== inventoryCheckToken) return;
+      renderInventoryStatus(resp.ok ? (parseInt(data.quantity) || 0) : 0);
+    } catch {
+      if (token !== inventoryCheckToken) return;
+      renderInventoryStatus(0, 'error');
+    }
   }
 
   async function showIdentifyScreen(data) {
@@ -1104,6 +1423,7 @@
       document.getElementById('altSection').style.display = 'none';
       document.getElementById('colorSheet').classList.remove('open');
       selectedPart = null;
+      renderInventoryStatus(0, 'hidden');
       return;
     }
 
@@ -1277,6 +1597,7 @@
     document.querySelectorAll('.swatch-btn').forEach(b => {
       b.classList.toggle('selected', parseInt(b.dataset.colorId) === id);
     });
+    checkInventoryStatus();
   }
 
   function resetColor() {
@@ -1287,6 +1608,8 @@
     document.getElementById('colorLabel').textContent = 'Select color';
     document.getElementById('colorSearch').value = '';
     document.querySelectorAll('.swatch-btn').forEach(b => b.classList.remove('selected'));
+    if (selectedPart?.type === 'part') renderInventoryStatus(0, 'needs-color');
+    else renderInventoryStatus(0, 'hidden');
   }
 
   function toggleColorSheet() {
@@ -1322,6 +1645,8 @@
       colorDropdown.classList.remove('open');
     }
     selectedColorId = null;
+    if (selectedPart?.type === 'part') renderInventoryStatus(0, 'needs-color');
+    else renderInventoryStatus(0, 'hidden');
   });
 
   document.addEventListener('click', function(e) {
@@ -1391,6 +1716,46 @@
       goTo('screen-success');
     })
     .catch(() => { err.textContent = 'Network error.'; err.style.display = 'block'; });
+  }
+
+  function removeOnePart() {
+    const err = document.getElementById('identifyError');
+    err.style.display = 'none';
+    if (!selectedPart) { err.textContent = 'No part selected.'; err.style.display = 'block'; return; }
+    if (!selectedColorId && selectedColorId !== 0) {
+      err.textContent = 'Please select a color.';
+      err.style.display = 'block';
+      return;
+    }
+    const listId = document.getElementById('listSelect').value;
+    if (!listId) { err.textContent = 'Please select a parts list.'; err.style.display = 'block'; return; }
+
+    const btn = document.getElementById('removeOneBtn');
+    btn.disabled = true;
+    btn.textContent = 'Removing...';
+
+    fetch('/api/remove_part_one', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ list_id: listId, part_num: selectedPart.id, color_id: selectedColorId })
+    })
+    .then(r => r.json().then(data => ({ ok: r.ok, data })))
+    .then(({ ok, data }) => {
+      if (!ok) {
+        const msg = data.error || data.non_field_errors?.[0] || data.detail || JSON.stringify(data);
+        err.textContent = `Error: ${msg}`;
+        err.style.display = 'block';
+        checkInventoryStatus();
+        return;
+      }
+      const qty = parseInt(data.quantity) || 0;
+      renderInventoryStatus(qty);
+    })
+    .catch(() => {
+      err.textContent = 'Network error.';
+      err.style.display = 'block';
+      checkInventoryStatus();
+    });
   }
 
   function addMinifig() {
@@ -1514,6 +1879,8 @@
   }
 
   function fetchListPage(listId, page, replace) {
+    const listErr = document.getElementById('listsError');
+    listErr.style.display = 'none';
     fetch(`/api/partlists/${listId}/parts?page=${page}`)
       .then(r => r.json())
       .then(data => {
@@ -1521,22 +1888,36 @@
         const parts = data.results || [];
         _listLoaded += parts.length;
         const html = parts.map(p => {
-          const img = p.part?.part_img_url || '';
+          const img = p._accurate_img_url || p.part?.part_img_url || '';
           const name = p.part?.name || p.part?.part_num || '?';
           const rgb = p.color?.rgb || 'ccc';
           const colorName = p.color?.name || '';
           const qty = p.quantity || 1;
-          return `<div class="part-item">
-            ${img ? `<img src="${img}" onerror="this.style.display='none'" loading="lazy">` :
+          const partNum = p.part?.part_num || '';
+          const colorId = p.color?.id ?? '';
+          return `<div class="part-item" data-part-num="${partNum}" data-color-id="${colorId}">
+            ${img ? `<img src="${img}" onclick="openImageModal('${img.replace(/'/g, "\\'")}', '${partNum.replace(/'/g, "\\'")}')" onerror="this.style.display='none'" loading="lazy">` :
                     `<div style="width:56px;height:56px;border-radius:8px;background:#f0f0f0;flex-shrink:0"></div>`}
             <div class="part-item-info">
               <div class="part-item-name">${name}</div>
               <div class="part-item-sub">
                 <span class="part-item-color-dot" style="background:#${rgb}"></span>
                 <span>${colorName}</span>
+                <span style="color:#888;margin-left:4px;">•</span>
+                <a href="https://www.bricklink.com/v2/catalog/catalogitem.page?P=${partNum}" target="_blank" style="color:#0072CE;text-decoration:none;margin-left:4px;font-size:13px;">${partNum}</a>
               </div>
             </div>
-            <div class="part-item-qty">×${qty}</div>
+            <div class="part-item-actions">
+              <button class="list-adjust-btn remove"
+                title="Remove one"
+                aria-label="Remove one ${name.replace(/"/g, '&quot;')}"
+                onclick="adjustListPart(event, -1, '${partNum.replace(/'/g, "\\'")}', '${colorId}')">−</button>
+              <div class="part-item-qty">×${qty}</div>
+              <button class="list-adjust-btn add"
+                title="Add one"
+                aria-label="Add one ${name.replace(/"/g, '&quot;')}"
+                onclick="adjustListPart(event, 1, '${partNum.replace(/'/g, "\\'")}', '${colorId}')">+</button>
+            </div>
           </div>`;
         }).join('');
         const grid = document.getElementById('listPartsGrid');
@@ -1550,6 +1931,168 @@
           '<p style="color:#c00;text-align:center;padding:24px 0">Failed to load.</p>';
       });
   }
+
+  function adjustListPart(event, delta, partNum, colorId) {
+    event.stopPropagation();
+    const btn = event.currentTarget;
+    const row = btn.closest('.part-item');
+    const qtyEl = row?.querySelector('.part-item-qty');
+    const actionBtns = row ? [...row.querySelectorAll('.list-adjust-btn')] : [btn];
+    const listErr = document.getElementById('listsError');
+    const listId = document.getElementById('listsViewSelect').value;
+    listErr.style.display = 'none';
+
+    if (!listId || !partNum || colorId === '') {
+      listErr.textContent = 'Missing list or part details.';
+      listErr.style.display = 'block';
+      return;
+    }
+
+    actionBtns.forEach(b => { b.disabled = true; });
+    const originalText = btn.textContent;
+    btn.textContent = '…';
+
+    const endpoint = delta > 0 ? '/api/add_part' : '/api/remove_part_one';
+    const body = delta > 0
+      ? { list_id: listId, part_num: partNum, color_id: parseInt(colorId), quantity: 1 }
+      : { list_id: listId, part_num: partNum, color_id: parseInt(colorId) };
+
+    fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    })
+    .then(r => r.json().then(data => ({ ok: r.ok, data })))
+    .then(({ ok, data }) => {
+      if (!ok) {
+        const msg = data.error || data.non_field_errors?.[0] || data.detail || JSON.stringify(data);
+        listErr.textContent = `Error: ${msg}`;
+        listErr.style.display = 'block';
+        actionBtns.forEach(b => { b.disabled = false; });
+        btn.textContent = originalText;
+        return;
+      }
+
+      const previousQty = parseInt(qtyEl?.textContent.replace(/[^\d]/g, '')) || 0;
+      const qty = delta > 0 ? previousQty + 1 : (parseInt(data.quantity) || 0);
+      if (qty <= 0) {
+        row?.remove();
+        _listLoaded = Math.max(0, _listLoaded - 1);
+        _listTotal = Math.max(0, _listTotal - 1);
+        if (!document.querySelector('#listPartsGrid .part-item')) {
+          document.getElementById('listPartsGrid').innerHTML =
+            '<p style="color:#aaa;text-align:center;padding:24px 0">No parts in this list.</p>';
+        }
+      } else {
+        if (qtyEl) qtyEl.textContent = `×${qty}`;
+        actionBtns.forEach(b => { b.disabled = false; });
+        btn.textContent = originalText;
+      }
+      loadPartlists(parseInt(listId));
+    })
+    .catch(() => {
+      listErr.textContent = 'Network error.';
+      listErr.style.display = 'block';
+      actionBtns.forEach(b => { b.disabled = false; });
+      btn.textContent = originalText;
+    });
+  }
+
+  // ── Animate scanning beam ──────────────────────────────────────────────
+  (function animateScan() {
+    const beam = document.getElementById('scanBeam');
+    const brickContent = document.getElementById('brick-content');
+    const minifigContent = document.getElementById('minifig-content');
+
+    if (!beam) return;
+
+    let startTime = null;
+    const duration = 1500; // 1.5 seconds
+    const minX = 6;
+    const maxX = 32;
+
+    function animate(currentTime) {
+      // Only animate if loading screen is visible
+      if (!document.getElementById('screen-loading').classList.contains('active')) {
+        requestAnimationFrame(animate);
+        return;
+      }
+
+      if (!startTime) startTime = currentTime;
+      const elapsed = (currentTime - startTime) % duration;
+      const progress = elapsed / duration;
+
+      // Simple sine wave for smooth back-and-forth
+      const x = minX + (maxX - minX) * (0.5 + 0.5 * Math.sin((progress - 0.5) * Math.PI));
+      beam.setAttribute('x', x.toFixed(1));
+
+      const distance = Math.abs(x - 20); // 20 is center
+      const highlight = Math.max(0, 1 - distance / 8); // Falloff over 8 units
+      const opacity = (0.6 + highlight * 0.4).toFixed(2);
+
+      // Highlight brick elements
+      if (brickContent.style.display !== 'none') {
+        const brickRect = brickContent.querySelector('rect');
+        if (brickRect) brickRect.setAttribute('opacity', opacity);
+
+        brickContent.querySelectorAll('circle').forEach(stud => {
+          const studX = parseFloat(stud.getAttribute('cx'));
+          const studDistance = Math.abs(x - studX);
+          const studHighlight = Math.max(0, 1 - studDistance / 6);
+          stud.setAttribute('opacity', (0.6 + studHighlight * 0.4).toFixed(2));
+        });
+      }
+
+      // Highlight minifigure elements
+      if (minifigContent.style.display !== 'none') {
+        minifigContent.querySelectorAll('line, circle, rect').forEach(el => {
+          el.setAttribute('opacity', opacity);
+        });
+      }
+
+      requestAnimationFrame(animate);
+    }
+
+    requestAnimationFrame(animate);
+  })();
+
+  // ── Image Modal ─────────────────────────────────────────────────────
+  function openImageModal(src, partNum) {
+    const modal = document.getElementById('imageModal');
+    const img = document.getElementById('modalImage');
+    const link = document.getElementById('modalPartLink');
+
+    img.src = src;
+
+    if (partNum) {
+      link.href = `https://www.bricklink.com/v2/catalog/catalogitem.page?P=${partNum}`;
+      link.textContent = partNum;
+    } else {
+      link.textContent = '—';
+      link.href = '';
+    }
+
+    modal.classList.add('active');
+  }
+
+  function closeImageModal() {
+    const modal = document.getElementById('imageModal');
+    modal.classList.remove('active');
+  }
+
+  // Close modal with Escape key
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeImageModal();
+    }
+  });
 </script>
+<!-- Image Modal -->
+<div id="imageModal" onclick="if(event.target === this) closeImageModal()">
+  <img id="modalImage" src="" alt="Part image">
+  <button class="modal-close-btn" onclick="closeImageModal()">×</button>
+  <a id="modalPartLink" href="" target="_blank" style="color:#0072CE;font-size:16px;font-weight:600;text-decoration:none;margin-top:10px;">—</a>
+</div>
+
 </body>
 </html>
