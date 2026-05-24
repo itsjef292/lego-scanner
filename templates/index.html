@@ -1856,20 +1856,7 @@
 
   function renderSwatches(partColors) {
     const container = document.getElementById('colorSwatches');
-    const searchInput = document.getElementById('colorSearch');
-
-    // Always show debug info in placeholder, even if empty
-    if (!partColors.length) {
-      searchInput.placeholder = `DEBUG: Empty colors array - API may have failed`;
-      container.innerHTML = '';
-      return;
-    }
-
-    // Show debug info about available colors
-    const hasBlack = partColors.some(c => c.color_name.toLowerCase().includes('black'));
-    const colorsList = partColors.map(c => `${c.color_name}(${c.color_id},sets:${c.num_sets})`).join(' | ');
-    searchInput.placeholder = `Has black: ${hasBlack} | Colors: ${colorsList.substring(0, 100)}...`;
-
+    if (!partColors.length) { container.innerHTML = ''; return; }
     partColors.sort((a, b) => (b.num_sets || 0) - (a.num_sets || 0));
     const colorMap = Object.fromEntries(colors.map(c => [c.id, c.rgb]));
     container.innerHTML = partColors.map(c => {
@@ -2256,7 +2243,6 @@
 
   function renderPartSetCount() {
     const section = document.getElementById('setsSection');
-    const setsList = document.getElementById('setsList');
     const label = document.getElementById('setsLabel');
 
     // Only show for parts mode with a color selected
@@ -2265,23 +2251,12 @@
       return;
     }
 
-    // Show num_sets if available from selected color
     const selectedColor = currentPartColors.find(c => c.color_id === selectedColorId);
-
     if (selectedColor && selectedColor.num_sets) {
       label.textContent = `Appears in ${selectedColor.num_sets} sets`;
-      setsList.innerHTML = '';
       section.style.display = 'block';
-    } else if (selectedColor) {
-      // Color found but no num_sets data
-      label.textContent = `Appears in — sets`;
-      setsList.innerHTML = '';
-      section.style.display = 'none';
     } else {
-      // Color not found in array - debug mode
-      label.textContent = `DEBUG: Color ID ${selectedColorId} not in currentPartColors (${currentPartColors.length} colors). Available: ${currentPartColors.map(c => `${c.color_id}(${c.color_name})`).join(', ')}`;
-      setsList.innerHTML = '';
-      section.style.display = 'block';
+      section.style.display = 'none';
     }
   }
 
