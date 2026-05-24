@@ -2244,12 +2244,8 @@
   function renderPartSetCount() {
     const section = document.getElementById('setsSection');
     const setsList = document.getElementById('setsList');
-    // Only show for parts mode with a color selected
-    if (mode !== 'parts' || !selectedPart || !selectedColorId) {
-      section.style.display = 'none';
-      return;
-    }
-    if (!selectedColorNumSets || selectedColorNumSets === 0) {
+    // Only show for parts mode with a color selected and valid num_sets
+    if (mode !== 'parts' || !selectedColorId || !selectedColorNumSets || selectedColorNumSets === 0) {
       section.style.display = 'none';
       return;
     }
