@@ -2245,16 +2245,18 @@
   function renderPartSetCount() {
     const section = document.getElementById('setsSection');
     const setsList = document.getElementById('setsList');
-    console.log('renderPartSetCount:', { mode, selectedColorId, selectedColorNumSets });
-    // Only show for parts mode with a color selected and valid num_sets
-    if (mode !== 'parts' || !selectedColorId || !selectedColorNumSets || selectedColorNumSets === 0) {
-      console.log('Hiding setsSection due to condition');
+    // Only show for parts mode with a color selected
+    if (mode !== 'parts' || !selectedColorId) {
       section.style.display = 'none';
       return;
     }
-    console.log('Showing setsSection with count:', selectedColorNumSets);
-    document.getElementById('setsLabel').textContent =
-      `Appears in ${selectedColorNumSets} set${selectedColorNumSets !== 1 ? 's' : ''}`;
+    // Show the section even if num_sets is 0/undefined (for testing/debugging)
+    const label = document.getElementById('setsLabel');
+    if (selectedColorNumSets && selectedColorNumSets > 0) {
+      label.textContent = `Appears in ${selectedColorNumSets} set${selectedColorNumSets !== 1 ? 's' : ''}`;
+    } else {
+      label.textContent = `Set count: ${selectedColorNumSets || 'N/A'}`;
+    }
     setsList.innerHTML = '';
     section.style.display = 'block';
   }
