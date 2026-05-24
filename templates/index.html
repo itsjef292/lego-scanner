@@ -1823,6 +1823,7 @@
     selectedColorName = name;
     selectedColorRgb = rgb;
     selectedColorNumSets = numSets || 0;
+    console.log('applyColor called:', { id, name, numSets, selectedColorNumSets });
     document.getElementById('colorDot').style.background = `#${rgb}`;
     document.getElementById('colorLabel').textContent = name;
     document.getElementById('colorSearch').value = name;
@@ -2244,11 +2245,14 @@
   function renderPartSetCount() {
     const section = document.getElementById('setsSection');
     const setsList = document.getElementById('setsList');
+    console.log('renderPartSetCount:', { mode, selectedColorId, selectedColorNumSets });
     // Only show for parts mode with a color selected and valid num_sets
     if (mode !== 'parts' || !selectedColorId || !selectedColorNumSets || selectedColorNumSets === 0) {
+      console.log('Hiding setsSection due to condition');
       section.style.display = 'none';
       return;
     }
+    console.log('Showing setsSection with count:', selectedColorNumSets);
     document.getElementById('setsLabel').textContent =
       `Appears in ${selectedColorNumSets} set${selectedColorNumSets !== 1 ? 's' : ''}`;
     setsList.innerHTML = '';
