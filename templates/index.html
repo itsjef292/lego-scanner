@@ -1523,6 +1523,10 @@
       return;
     }
 
+    // Hide parts section when scanning a regular part (not a minifigure)
+    document.getElementById('partsSection').style.display = 'none';
+    _minifigPartsData = null;
+
     document.getElementById('colorSheet').classList.add('open');
     document.getElementById('colorSwatches').innerHTML =
       '<span style="color:#aaa;font-size:13px">Detecting color…</span>';
