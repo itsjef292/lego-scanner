@@ -431,21 +431,25 @@ def get_minifig_price(fig_id):
     results = {}
     category = None
 
-    # Fetch item details for category
-    try:
-        item_resp = requests.get(
-            f"https://api.bricklink.com/api/store/v1/items/MINIFIG/{fig_id}",
-            auth=auth,
-            timeout=8,
-        )
-        if item_resp.status_code == 200:
-            item_data = item_resp.json().get("data", {})
-            # BrickLink API returns type as the category name for minifigs
-            category = item_data.get("type", "Minifigure")
-            if not category:
-                category = "Minifigure"
-    except Exception as e:
-        pass
+    # Extract theme from minifigure ID prefix (e.g., "sw1094" = Star Wars)
+    # Common prefixes: sw=Star Wars, hp=Harry Potter, lor=LOTR, dim=Dimensions, cmf=Collectible, etc.
+    theme_prefix_match = re.match(r'^([a-z]+)', fig_id.lower() if fig_id else '')
+    theme_prefix = theme_prefix_match.group(1) if theme_prefix_match else ''
+
+    theme_map = {
+        'sw': 'Star Wars',
+        'hp': 'Harry Potter',
+        'lor': 'Lord of the Rings',
+        'dim': 'Dimensions',
+        'cmf': 'Collectible Minifigure',
+        'coltlm': 'The LEGO Movie',
+        'colsh': 'Super Heroes',
+        'col': 'Collectible Series',
+        'pm': 'Pirates of the Caribbean',
+        'njo': 'Ninjago',
+    }
+
+    category = theme_map.get(theme_prefix, 'Minifigure')
 
     # Fetch pricing and inventory for each condition
     for condition in ("U", "N"):

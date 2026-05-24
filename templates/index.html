@@ -1806,25 +1806,12 @@
     const fmt = v => v ? `$${parseFloat(v).toFixed(2)}` : '—';
     const cards = [];
 
-    // Display category in the info section if available
+    // Display theme/category in the info section if available
     if (data.category) {
       const categoryRow = document.getElementById('categoryRow');
       const categoryValue = document.getElementById('categoryValue');
       if (categoryRow && categoryValue) {
-        // Format category nicely (e.g., "MINIFIG" -> "Minifigure", "SW" -> "Star Wars", etc.)
-        const categoryMap = {
-          'MINIFIG': 'Minifigure',
-          'SW': 'Star Wars',
-          'HP': 'Harry Potter',
-          'LOR': 'Lord of the Rings',
-          'TLM': 'The LEGO Movie',
-          'NINJAGO': 'Ninjago',
-          'CITY': 'City',
-          'FRIEND': 'Friends',
-          'CLASSIC': 'Classic'
-        };
-        const displayCategory = categoryMap[data.category] || data.category;
-        categoryValue.textContent = displayCategory;
+        categoryValue.textContent = data.category;
         categoryRow.style.display = '';
       }
     }
