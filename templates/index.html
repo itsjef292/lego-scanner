@@ -2252,20 +2252,16 @@
     const selectedColor = currentPartColors.find(c => c.color_id === selectedColorId);
     const label = document.getElementById('setsLabel');
 
-    // Always show for debugging if num_sets is missing/zero
-    if (!selectedColorNumSets || selectedColorNumSets === 0) {
-      if (selectedColor) {
-        label.textContent = `Color: ${selectedColor.color_name} | num_sets: ${selectedColorNumSets || 'undefined'} | Full: ${JSON.stringify(selectedColor).substring(0, 100)}...`;
-        setsList.innerHTML = '';
-      } else {
-        label.textContent = 'num_sets is 0 or missing';
-      }
+    // Debug info
+    if (selectedColor) {
+      label.textContent = `DEBUG - Color ID: ${selectedColorId} | Name: ${selectedColor.color_name} | num_sets from API: ${selectedColor.num_sets} | selectedColorNumSets var: ${selectedColorNumSets}`;
+      setsList.innerHTML = `<div style="font-size:11px;color:#888;padding:8px;word-break:break-all;">${JSON.stringify(selectedColor)}</div>`;
       section.style.display = 'block';
       return;
     }
-    document.getElementById('setsLabel').textContent =
-      `Appears in ${selectedColorNumSets} set${selectedColorNumSets !== 1 ? 's' : ''}`;
-    setsList.innerHTML = '';
+
+    // If color not found in array
+    label.textContent = `Color ID ${selectedColorId} not found in currentPartColors (length: ${currentPartColors.length})`;
     section.style.display = 'block';
   }
 
