@@ -40,7 +40,7 @@ gcloud config set run/region $REGION
 ### Option A: Deploy directly from source (easiest)
 
 ```bash
-cd /Users/jef/Claude/Lego
+cd /Users/jef/Claude/Brick\ Scanner
 
 gcloud run deploy brick-scanner \
   --source . \
