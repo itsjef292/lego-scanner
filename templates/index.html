@@ -914,6 +914,7 @@
   let selectedColorId = null;
   let selectedColorName = '';
   let selectedColorRgb = '';
+  let selectedColorNumSets = null;
   let selectedPart = null;
   let currentInventoryQuantity = 0;
   let inventoryCheckToken = 0;
@@ -1814,10 +1815,11 @@
     }
   }
 
-  function applyColor(id, name, rgb) {
+  function applyColor(id, name, rgb, numSets) {
     selectedColorId = id;
     selectedColorName = name;
     selectedColorRgb = rgb;
+    selectedColorNumSets = numSets || 0;
     document.getElementById('colorDot').style.background = `#${rgb}`;
     document.getElementById('colorLabel').textContent = name;
     document.getElementById('colorSearch').value = name;
@@ -1825,6 +1827,7 @@
     document.querySelectorAll('.swatch-btn').forEach(b => {
       b.classList.toggle('selected', parseInt(b.dataset.colorId) === id);
     });
+    renderPartSetCount();
     checkInventoryStatus();
     fetchPartInLists();
   }
@@ -1833,10 +1836,12 @@
     selectedColorId = null;
     selectedColorName = '';
     selectedColorRgb = '';
+    selectedColorNumSets = null;
     document.getElementById('colorDot').style.background = '#ccc';
     document.getElementById('colorLabel').textContent = 'Select color';
     document.getElementById('colorSearch').value = '';
     document.querySelectorAll('.swatch-btn').forEach(b => b.classList.remove('selected'));
+    document.getElementById('setsSection').style.display = 'none';
     if (selectedPart?.type === 'part') renderInventoryStatus(0, 'needs-color');
     else renderInventoryStatus(0, 'hidden');
     document.getElementById('partListsSection').style.display = 'none';
@@ -1855,7 +1860,7 @@
       const rgb = colorMap[c.color_id] || '888888';
       const isSelected = c.color_id === selectedColorId;
       return `<button class="swatch-btn${isSelected ? ' selected' : ''}" data-color-id="${c.color_id}"
-          onclick="applyColor(${c.color_id}, '${c.color_name.replace(/'/g,"\\'")}', '${rgb}')">
+          onclick="applyColor(${c.color_id}, '${c.color_name.replace(/'/g,"\\'")}', '${rgb}', ${c.num_sets || 0})">
           <span class="dot" style="background:#${rgb}"></span>${c.color_name}
         </button>`;
     }).join('');
@@ -2227,6 +2232,24 @@
     }
     if (!cards.length) return;
     grid.innerHTML = cards.join('');
+    section.style.display = 'block';
+  }
+
+  function renderPartSetCount() {
+    const section = document.getElementById('setsSection');
+    const setsList = document.getElementById('setsList');
+    // Only show for parts mode with a color selected
+    if (mode !== 'parts' || !selectedPart || !selectedColorId) {
+      section.style.display = 'none';
+      return;
+    }
+    if (!selectedColorNumSets || selectedColorNumSets === 0) {
+      section.style.display = 'none';
+      return;
+    }
+    document.getElementById('setsLabel').textContent =
+      `Appears in ${selectedColorNumSets} set${selectedColorNumSets !== 1 ? 's' : ''}`;
+    setsList.innerHTML = '';
     section.style.display = 'block';
   }
 
