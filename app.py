@@ -473,6 +473,7 @@ def get_minifig_price(fig_id):
         'sw': 'Star Wars',
         'hp': 'Harry Potter',
         'lor': 'Lord of the Rings',
+        'zelda': 'Legend of Zelda',
         'dim': 'Dimensions',
         'cmf': 'Collectible Minifigure',
         'coltlm': 'The LEGO Movie',
