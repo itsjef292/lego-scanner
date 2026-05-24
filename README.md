@@ -1,6 +1,6 @@
 # LEGO Scanner
 
-A local web app to scan LEGO parts with your phone camera, identify them via [Brickognize](https://brickognize.com), and log them to your [Rebrickable](https://rebrickable.com) parts list.
+A local web app to scan brick parts with your phone camera, identify them via [Brickognize](https://brickognize.com), and log them to your [Rebrickable](https://rebrickable.com) parts list.
 
 ## How it works
 
