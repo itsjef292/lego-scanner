@@ -58,8 +58,10 @@ Flask server with 10+ endpoints:
 - `GET /api/partlists` — Fetch user's parts lists
 - `POST /api/partlists` — Create new parts list
 - `DELETE /api/partlists/<id>` — Delete list
-- `GET /api/partlists/<id>/parts` — Get parts in a list (paginated)
+- `GET /api/partlists/<id>/parts` — Get parts in a list (paginated, with color-specific images)
+- `GET /api/partlists/<id>/parts/<part_num>/<color_id>` — Check if specific part/color exists in list
 - `POST /api/add_part` — Add/update part in list (merges quantities if exists)
+- `POST /api/remove_part_one` — Decrement part quantity by 1 (delete if qty becomes 0)
 
 **Minifig Management:**
 - `GET /api/minifiglists` — Fetch minifig lists
@@ -92,6 +94,9 @@ Single-page app with 5 screens:
 - **EXIF rotation handling** — Converts portrait camera images (EXIF orientation 6) to landscape raw coordinates for bbox alignment
 - **Color matching logic** — Prioritizes hue distance for chromatic colors, LAB distance for achromatic; penalizes Trans-, Glow-in-Dark, Satin colors unless explicitly detected
 - **Quantity management** — Resets to 1 on each scan to prevent user error; merges with existing inventory on add
+- **Inventory status checking** — Real-time lookup when selecting a color to show if part/color combo is already in the list (with quick remove button)
+- **List management UI** — Add/remove buttons in list view for quick quantity adjustments
+- **Color-specific images** — Cache and display correct images for each part/color variant
 - **Dark mode** — Nearly black backgrounds (#0a0a0a) with white text, blue accent (#0072CE)
 
 **No external JS frameworks** — Pure vanilla JS with event listeners and DOM manipulation
@@ -112,18 +117,27 @@ Single-page app with 5 screens:
    - Fallback crop (center 40%) → histogram peak approach
    - Convert to LAB, match against server-provided candidates or all colors
 6. **Display:** Show part image, metadata, color options, price (minifigs), sets, alternatives
-7. **Add:** User sets color + quantity → `POST /api/add_part` merges or creates entry
+7. **Inventory Check:** When user selects a color, async query to `GET /api/partlists/<id>/parts/<part_num>/<color_id>` returns current quantity if already in list
+8. **Add/Remove:** User clicks "Add to List" → `POST /api/add_part` merges or creates entry; or clicks "Remove 1" → `POST /api/remove_part_one` decrements
 
 ---
 
 ## Recent Changes
+
+**Inventory Status & Management (May 2026):** 
+- Added inventory checking: When a user selects a color on the identify screen, the app queries if that part/color is already in the selected list
+- Shows inventory status UI with current quantity and "Remove 1" button for quick decrements
+- Added `GET /api/partlists/<id>/parts/<part_num>/<color_id>` endpoint for checking specific part/color existence
+- Added `POST /api/remove_part_one` endpoint to decrement or delete items
+- Enhanced list view with +/- buttons for quick quantity adjustments (green for add, red for remove)
+- Implemented color-specific image caching with `PART_COLOR_IMAGE_CACHE` to improve performance and accuracy
 
 **Dark Mode (May 2026):** Complete CSS color palette swap from light theme to dark:
 - Body: #f2f2f7 → #0a0a0a | Text: #111 → #fff
 - Cards: #fff → #1a1a1a | Secondary: #f2f2f7 → #222
 - Borders: #ddd → #444 | Blue accent preserved (#0072CE)
 
-**Image URL Fix:** Rebrickable `part_img_url` now used for parts (fallback to BrickLink) to avoid dead image links.
+**Image URL Fix:** Rebrickable `part_img_url` now used for parts (fallback to BrickLink) to avoid dead image links. Color-specific images are now cached for better performance.
 
 **Quantity Reset:** Moved to start of identify screen to prevent async rendering timing issues on iOS Safari.
 
@@ -144,6 +158,24 @@ Single-page app with 5 screens:
 2. Check `/tmp/brk_full.json` (written on each identify) for raw Brickognize response
 3. Verify bounding box coordinates are correct in LAB→RGB conversion
 
+### Inventory Status Checking
+
+When a user selects a color in the identify screen:
+
+1. Frontend calls `checkInventoryStatus()` which queries `GET /api/partlists/<list_id>/parts/<part_num>/<color_id>`
+2. Backend returns `{"quantity": N, "_exists": true}` or `{"quantity": 0, "_exists": false}`
+3. Frontend renders `renderInventoryStatus()` which shows:
+   - Green checkmark + "Already in inventory" if exists
+   - "Remove 1" button for quick decrement
+   - Different state if color not yet selected ("Select a color first")
+4. If quantity > 1, decrement; if quantity == 1, delete entirely via `POST /api/remove_part_one`
+
+**Key implementation details:**
+- Inventory check is async; triggers when color selected (`selectColor()` calls `checkInventoryStatus()`)
+- Uses `inventoryCheckToken` to prevent race conditions when rapidly changing colors
+- Shows error messages in `.list-msg` div for network failures
+- List view has +/- buttons that immediately adjust quantities without navigation
+
 ### Styling Changes
 
 All CSS is in `<style>` within index.html. Dark mode uses:
@@ -152,6 +184,10 @@ All CSS is in `<style>` within index.html. Dark mode uses:
 - `#222` — Secondary surfaces
 - `#0072CE` — Blue accent (buttons, active states)
 - `#fff` / `#aaa` / `#888` — Text hierarchy
+
+Inventory UI colors:
+- Green (#19a64a) for "already in inventory" state
+- Red (#3a1618 background, #ffb8bf text) for remove buttons
 
 No CSS files or preprocessors; inline styles for specific elements.
 
