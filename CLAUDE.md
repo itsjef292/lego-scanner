@@ -235,18 +235,121 @@ No CSS files or preprocessors; inline styles for specific elements.
 
 ---
 
+## Deployment & Development Workflow
+
+### Current Setup (May 2026)
+
+**Two independent instances:**
+1. **Local Development** — `http://127.0.0.1:5001` (on your Mac)
+   - Used for testing features before deployment
+   - Run with: `python3 app.py`
+   - Automatically reloads on code changes (via Flask debug mode)
+
+2. **Cloud Production** — `https://lego-scanner-es6d.onrender.com` (Render.com)
+   - Public URL accessible from anywhere
+   - Auto-deploys when you push to GitHub
+   - ~$5-50/month depending on usage
+
+### Development Workflow
+
+**Golden Rule:** All development happens locally. Only push to main when explicitly instructed.
+
+```bash
+# 1. Make changes locally
+# Edit app.py, templates/index.html, etc.
+
+# 2. Test on local server
+python3 app.py
+# Visit http://127.0.0.1:5001 on phone/browser
+
+# 3. When ready to deploy, say "push to main"
+# Claude will then:
+git add .
+git commit -m "descriptive message"
+git push origin main
+
+# 4. Render auto-redeploys (takes ~1 minute)
+```
+
+### Deployment Architecture
+
+**Local Stack:**
+- Flask development server on `localhost:5001`
+- Uses `.env` for API credentials
+- Quick iteration and testing
+
+**Render Stack:**
+- `Dockerfile` for containerization
+- `requirements.txt` with dependencies
+- `gunicorn` WSGI server (production-grade)
+- Environment variables set in Render console
+- Auto-redeploy on GitHub push via webhook
+
+**Files involved in deployment:**
+- `Dockerfile` — Container config
+- `requirements.txt` — Python dependencies
+- `.dockerignore` — Excludes unnecessary files from build
+- `render.yaml` — Render-specific configuration
+- `DEPLOY.md` — Detailed deployment instructions
+
+### How to Deploy Updates
+
+**When you want to push changes to production:**
+
+Say: **"Push to main"** or **"Deploy this"**
+
+I will:
+1. Stage all changes
+2. Create a commit with descriptive message
+3. Push to GitHub (`git push origin main`)
+4. Render automatically redeploys within 1-2 minutes
+
+**The cloud instance updates automatically — no manual Render steps needed.**
+
+### API Key Management
+
+**Local (.env file):**
+```
+REBRICKABLE_API_KEY=REDACTED_REBRICKABLE_API_KEY
+REBRICKABLE_USER_TOKEN=REDACTED_REBRICKABLE_USER_TOKEN
+BL_CONSUMER_KEY=REDACTED_BL_CONSUMER_KEY
+BL_CONSUMER_SECRET=REDACTED_BL_CONSUMER_SECRET
+BL_TOKEN=REDACTED_BL_TOKEN
+BL_TOKEN_SECRET=REDACTED_BL_TOKEN_SECRET
+```
+
+**Cloud (Render environment variables):**
+- Same 6 variables set in Render dashboard
+- Never committed to git (for security)
+- Used by production instance
+
+### Cost Estimation
+
+**Render.com pricing (as of May 2026):**
+- 50,000 scans/month: ~$5-10
+- 500,000 scans/month: ~$50-100
+- 5,000,000 scans/month: ~$500-1,000
+
+Free tier covers small hobby usage.
+
+---
+
 ## Testing on Device
 
 ```bash
-# Run start.sh for ngrok tunnel, or manually:
+# Local development server:
 python3 app.py
-# Open on phone: http://<mac-local-ip>:5001 (same Wi-Fi)
+# Open on phone: http://127.0.0.1:5001 (same Wi-Fi)
+
+# Or use public cloud URL:
+# https://lego-scanner-es6d.onrender.com (anywhere)
 ```
 
 **Common issues:**
 - CORS: Brickognize/Rebrickable requests go through Flask backend, not browser
 - EXIF: iPhone always returns portrait; bbox must be rotated for alignment
 - Safari form inputs: Type conversions (number ↔ text) can cause issues; reset early in function
+- Cache: Hard refresh on iPhone with Cmd+Shift+R to clear cache
 
 ---
 
