@@ -1168,8 +1168,8 @@
     if (!file) return;
     if (capturedObjectUrl) URL.revokeObjectURL(capturedObjectUrl);
     capturedObjectUrl = URL.createObjectURL(file);
-    document.querySelector('#screen-loading p').textContent =
-      mode === 'minifigs' ? 'Identifying minifig...' : 'Identifying part...';
+    const loadingText = mode === 'minifigs' ? 'Identifying minifig...' : 'Identifying part...';
+    animateTypewriter(document.querySelector('#screen-loading p'), loadingText);
     goTo('screen-loading');
     identifyPart(file);
     this.value = '';
@@ -1906,6 +1906,21 @@
         <div class="color-swatch" style="background:#${c.rgb}"></div>${c.name}
       </div>`;
     }).join('');
+  }
+
+  function animateTypewriter(element, text, speed = 80) {
+    element.textContent = '';
+    let index = 0;
+
+    function typeNextLetter() {
+      if (index < text.length) {
+        element.textContent += text[index];
+        index++;
+        setTimeout(typeNextLetter, speed);
+      }
+    }
+
+    typeNextLetter();
   }
 
   function adjustQty(delta) {
