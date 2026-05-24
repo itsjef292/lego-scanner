@@ -60,6 +60,7 @@ Flask server with 10+ endpoints:
 - `DELETE /api/partlists/<id>` — Delete list
 - `GET /api/partlists/<id>/parts` — Get parts in a list (paginated, with color-specific images)
 - `GET /api/partlists/<id>/parts/<part_num>/<color_id>` — Check if specific part/color exists in list
+- `GET /api/part_in_lists/<part_num>/<color_id>` — Find all lists containing a specific part/color with quantities
 - `POST /api/add_part` — Add/update part in list (merges quantities if exists)
 - `POST /api/remove_part_one` — Decrement part quantity by 1 (delete if qty becomes 0)
 
@@ -94,7 +95,11 @@ Single-page app with 5 screens:
 - **EXIF rotation handling** — Converts portrait camera images (EXIF orientation 6) to landscape raw coordinates for bbox alignment
 - **Color matching logic** — Prioritizes hue distance for chromatic colors, LAB distance for achromatic; penalizes Trans-, Glow-in-Dark, Satin colors unless explicitly detected
 - **Quantity management** — Resets to 1 on each scan to prevent user error; merges with existing inventory on add
-- **Inventory status checking** — Real-time lookup when selecting a color to show if part/color combo is already in the list (with quick remove button)
+- **Inventory status checking** — Real-time lookup when selecting a color to show if part/color combo is already in selected list (with quick remove button)
+- **Cross-list inventory** — "Found in" section shows all lists containing the part with quick +/− buttons to adjust across lists
+- **Smart list selection** — Optional default list on scan screen; list picker modal only appears if no default selected
+- **Inline list creation** — Create new lists directly from picker modals without navigation
+- **Expandable parts** — Minifigure parts section is collapsible to reduce visual clutter
 - **List management UI** — Add/remove buttons in list view for quick quantity adjustments
 - **Color-specific images** — Cache and display correct images for each part/color variant
 - **Dark mode** — Nearly black backgrounds (#0a0a0a) with white text, blue accent (#0072CE)
@@ -123,6 +128,28 @@ Single-page app with 5 screens:
 ---
 
 ## Recent Changes
+
+**Cross-List Inventory Tracking (May 2026):**
+- New endpoint `GET /api/part_in_lists/<part_num>/<color_id>` — Shows which lists contain a scanned part with quantities
+- "Found in:" section displays on identify screen after selecting a color
+- Quick +/− buttons on each list to adjust quantities without navigating away
+- Quantities update instantly with visual feedback
+
+**Minifigure Parts UI Improvements (May 2026):**
+- Minifigure parts section now expandable/collapsible with arrow toggle (▶ → ▼)
+- Parts display in horizontal layout: image left, text right (cleaner and more scannable)
+- "Add Parts" button moved to quantity row (more prominent, easier to reach)
+- Parts section collapsed by default to reduce visual clutter
+
+**List Selection & Modal Improvements (May 2026):**
+- "No list selected" option added to scan screen dropdown — users can deselect lists
+- List picker modal only appears when needed:
+  - If default list is selected: adds part directly without modal
+  - If no list selected: shows modal to choose list
+- Both list picker modals now support creating new lists inline:
+  - "+ Create New List" button in modal toggles creation form
+  - New list automatically selected after creation
+  - Available for both regular parts and minifigure bulk add
 
 **Inventory Status & Management (May 2026):** 
 - Added inventory checking: When a user selects a color on the identify screen, the app queries if that part/color is already in the selected list
@@ -175,6 +202,21 @@ When a user selects a color in the identify screen:
 - Uses `inventoryCheckToken` to prevent race conditions when rapidly changing colors
 - Shows error messages in `.list-msg` div for network failures
 - List view has +/- buttons that immediately adjust quantities without navigation
+
+### Cross-List Inventory Tracking
+
+When a user selects a color, the app also calls `fetchPartInLists()` to display "Found in" section:
+
+1. Frontend calls `fetchPartInLists()` which queries `GET /api/part_in_lists/<part_num>/<color_id>`
+2. Backend fetches all user lists, checks each for the part, returns array with list names and quantities
+3. Frontend renders each list with +/− buttons for quick quantity adjustment
+4. `quickAddPartToList()` and `quickRemovePartFromList()` handle the adjustments without navigation
+
+**Key implementation details:**
+- Shows all lists containing the part simultaneously (different from single list selection)
+- Uses inline quantity display: `<span class="list-qty-${list_id}">`
+- Buttons immediately call API and update UI (no page reload)
+- Section hidden if part not found in any list or color not selected
 
 ### Styling Changes
 
