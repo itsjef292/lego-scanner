@@ -741,8 +741,15 @@
         <circle cx="26" cy="10" r="1.5" fill="none" stroke="#0072CE" stroke-width="1.5" opacity="0.6"/>
       </g>
 
-      <!-- Scanning beam (animated rectangle) -->
-      <rect id="scanBeam" x="6" y="5" width="1.2" height="18" fill="#22C55E" filter="url(#scanGlow)" opacity="0.9"/>
+      <!-- Animated magnifying glass circling the brick -->
+      <g id="magnifyingGlassGroup" transform="translate(25, 20)">
+        <!-- Magnifying glass lens -->
+        <circle id="glassLens" cx="0" cy="-12" r="6" fill="none" stroke="#0072CE" stroke-width="1.5" opacity="0.8"/>
+        <!-- Magnifying glass handle -->
+        <line id="glassHandle" x1="4" y1="-8" x2="8" y2="-4" stroke="#0072CE" stroke-width="1.2" opacity="0.8"/>
+        <!-- Glow effect inside lens -->
+        <circle cx="0" cy="-12" r="5.5" fill="none" stroke="#22C55E" stroke-width="0.8" opacity="0.6" filter="url(#scanGlow)"/>
+      </g>
     </svg>
   </div>
   <p id="loadingText">Identifying part...</p>
@@ -2496,18 +2503,16 @@
     });
   }
 
-  // ── Animate scanning beam ──────────────────────────────────────────────
+  // ── Animate magnifying glass circling brick ─────────────────────────
   (function animateScan() {
-    const beam = document.getElementById('scanBeam');
+    const glassGroup = document.getElementById('magnifyingGlassGroup');
     const brickContent = document.getElementById('brick-content');
     const minifigContent = document.getElementById('minifig-content');
 
-    if (!beam) return;
+    if (!glassGroup) return;
 
     let startTime = null;
-    const duration = 1500; // 1.5 seconds
-    const minX = 6;
-    const maxX = 32;
+    const duration = 2000; // 2 seconds for a full rotation
 
     function animate(currentTime) {
       // Only animate if loading screen is visible
@@ -2520,31 +2525,29 @@
       const elapsed = (currentTime - startTime) % duration;
       const progress = elapsed / duration;
 
-      // Simple sine wave for smooth back-and-forth
-      const x = minX + (maxX - minX) * (0.5 + 0.5 * Math.sin((progress - 0.5) * Math.PI));
-      beam.setAttribute('x', x.toFixed(1));
+      // Rotate magnifying glass around center (360 degrees)
+      const rotation = progress * 360;
+      glassGroup.setAttribute('transform', `translate(25, 20) rotate(${rotation})`);
 
-      const distance = Math.abs(x - 20); // 20 is center
-      const highlight = Math.max(0, 1 - distance / 8); // Falloff over 8 units
-      const opacity = (0.6 + highlight * 0.4).toFixed(2);
+      // Pulse opacity for subtle effect
+      const opacity = (0.7 + 0.3 * Math.sin(progress * Math.PI * 2)).toFixed(2);
+      glassGroup.setAttribute('opacity', opacity);
 
-      // Highlight brick elements
+      // Highlight brick elements with pulsing effect
+      const brickOpacity = (0.6 + 0.4 * Math.sin(progress * Math.PI * 2)).toFixed(2);
       if (brickContent.style.display !== 'none') {
         const brickRect = brickContent.querySelector('rect');
-        if (brickRect) brickRect.setAttribute('opacity', opacity);
+        if (brickRect) brickRect.setAttribute('opacity', brickOpacity);
 
         brickContent.querySelectorAll('circle').forEach(stud => {
-          const studX = parseFloat(stud.getAttribute('cx'));
-          const studDistance = Math.abs(x - studX);
-          const studHighlight = Math.max(0, 1 - studDistance / 6);
-          stud.setAttribute('opacity', (0.6 + studHighlight * 0.4).toFixed(2));
+          stud.setAttribute('opacity', brickOpacity);
         });
       }
 
-      // Highlight minifigure elements
+      // Highlight minifigure elements with pulsing effect
       if (minifigContent.style.display !== 'none') {
         minifigContent.querySelectorAll('line, circle, rect').forEach(el => {
-          el.setAttribute('opacity', opacity);
+          el.setAttribute('opacity', brickOpacity);
         });
       }
 
