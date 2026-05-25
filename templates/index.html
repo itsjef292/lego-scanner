@@ -649,6 +649,19 @@
 
 <!-- Screen 1: Scan -->
 <div class="screen active" id="screen-scan">
+  <!-- Parts search box -->
+  <div id="partsSearchSection" style="padding:20px 20px 0;">
+    <label style="display:block;font-size:13px;color:#aaa;margin-bottom:8px;">Search by part number</label>
+    <div style="display:flex;gap:8px;">
+      <input id="partSearchInput" type="text" placeholder="e.g., 3710"
+        style="flex:1;padding:10px 12px;border:1px solid #444;border-radius:8px;font-size:15px;background:#222;color:#fff;"
+        onkeydown="if(event.key==='Enter')searchPartByNumber()">
+      <button onclick="searchPartByNumber()"
+        style="padding:10px 16px;background:#0072CE;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">Search</button>
+    </div>
+    <div id="partSearchError" style="color:#ff6b6b;font-size:12px;margin-top:8px;display:none;"></div>
+  </div>
+
   <div class="scan-area" style="margin:20px;border-radius:16px;">
     <div class="scan-icon">🔍</div>
     <p id="scanHint">Take a photo of a LEGO part to identify it and add it to your parts list.</p>
@@ -677,6 +690,16 @@
 
   <!-- Minifig note (Rebrickable API is read-only for minifig collection) -->
   <div id="minifigListRow" style="padding:0 20px 16px;display:none;">
+    <!-- Minifig search box -->
+    <label style="display:block;font-size:13px;color:#aaa;margin-bottom:8px;">Search by minifig ID</label>
+    <div style="display:flex;gap:8px;margin-bottom:16px;">
+      <input id="minifigSearchInput" type="text" placeholder="e.g., fig-000001"
+        style="flex:1;padding:10px 12px;border:1px solid #444;border-radius:8px;font-size:15px;background:#222;color:#fff;"
+        onkeydown="if(event.key==='Enter')searchMinifigById()">
+      <button onclick="searchMinifigById()"
+        style="padding:10px 16px;background:#0072CE;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">Search</button>
+    </div>
+    <div id="minifigSearchError" style="color:#ff6b6b;font-size:12px;margin-bottom:8px;display:none;"></div>
     <p style="margin:0;font-size:13px;color:#aaa;line-height:1.4;">
       Minifig tracking isn't available via the Rebrickable API — use the link above to view it on Rebrickable directly.
     </p>
@@ -1182,6 +1205,96 @@
       .then(r => r.json())
       .then(data => showIdentifyScreen(data))
       .catch(() => showIdentifyScreen({ items: [] }));
+  }
+
+  async function searchPartByNumber() {
+    const partNum = document.getElementById('partSearchInput').value.trim();
+    const errorDiv = document.getElementById('partSearchError');
+    errorDiv.style.display = 'none';
+
+    if (!partNum) {
+      errorDiv.textContent = 'Please enter a part number';
+      errorDiv.style.display = 'block';
+      return;
+    }
+
+    try {
+      errorDiv.textContent = 'Searching...';
+      errorDiv.style.display = 'block';
+      errorDiv.style.color = '#aaa';
+
+      // Fetch part data
+      const resp = await fetch(`/api/part/${partNum}`);
+      if (!resp.ok) {
+        throw new Error('Part not found');
+      }
+      const partData = await resp.json();
+
+      // Format as identify screen data structure
+      const item = {
+        type: 'part',
+        id: partData.part_num,
+        name: partData.name,
+        img_url: partData.part_img_url,
+        bl_id: partData.external_id,
+        candidate_colors: []
+      };
+
+      errorDiv.style.display = 'none';
+      document.getElementById('partSearchInput').value = '';
+
+      // Show as single result
+      showIdentifyScreen({ items: [item] });
+    } catch (err) {
+      errorDiv.textContent = `Error: ${err.message}`;
+      errorDiv.style.color = '#ff6b6b';
+      errorDiv.style.display = 'block';
+    }
+  }
+
+  async function searchMinifigById() {
+    const minifigId = document.getElementById('minifigSearchInput').value.trim();
+    const errorDiv = document.getElementById('minifigSearchError');
+    errorDiv.style.display = 'none';
+
+    if (!minifigId) {
+      errorDiv.textContent = 'Please enter a minifig ID';
+      errorDiv.style.display = 'block';
+      return;
+    }
+
+    try {
+      errorDiv.textContent = 'Searching...';
+      errorDiv.style.display = 'block';
+      errorDiv.style.color = '#aaa';
+
+      // Fetch minifig data via backend
+      const resp = await fetch(`/api/minifig/${minifigId}`);
+
+      if (!resp.ok) {
+        throw new Error('Minifig not found');
+      }
+      const minifigData = await resp.json();
+
+      // Format as identify screen data structure
+      const item = {
+        type: 'minifig',
+        id: minifigData.fig_num || minifigId,
+        name: minifigData.name,
+        img_url: minifigData.fig_img_url || minifigData.set_img_url,
+        bl_id: minifigData.external_id
+      };
+
+      errorDiv.style.display = 'none';
+      document.getElementById('minifigSearchInput').value = '';
+
+      // Show as single result
+      showIdentifyScreen({ items: [item] });
+    } catch (err) {
+      errorDiv.textContent = `Error: ${err.message}`;
+      errorDiv.style.color = '#ff6b6b';
+      errorDiv.style.display = 'block';
+    }
   }
 
   function extractBlId(item) {

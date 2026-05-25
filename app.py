@@ -390,6 +390,15 @@ def get_minifig_sets(set_num):
     return jsonify(resp.json()), resp.status_code
 
 
+@app.route("/api/minifig/<minifig_id>")
+def get_minifig(minifig_id):
+    resp = requests.get(
+        f"{RB_BASE}/lego/minifigs/{minifig_id}/",
+        params={"key": API_KEY},
+    )
+    return jsonify(resp.json()), resp.status_code
+
+
 @app.route("/api/minifiglists")
 def get_minifiglists():
     resp = requests.get(
