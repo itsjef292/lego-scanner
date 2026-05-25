@@ -691,9 +691,9 @@
   <!-- Minifig note (Rebrickable API is read-only for minifig collection) -->
   <div id="minifigListRow" style="padding:0 20px 16px;display:none;">
     <!-- Minifig search box -->
-    <label style="display:block;font-size:13px;color:#aaa;margin-bottom:8px;">Search by minifig ID</label>
+    <label style="display:block;font-size:13px;color:#aaa;margin-bottom:8px;">Search by minifig ID or BrickLink code</label>
     <div style="display:flex;gap:8px;margin-bottom:16px;">
-      <input id="minifigSearchInput" type="text" placeholder="e.g., fig-000001"
+      <input id="minifigSearchInput" type="text" placeholder="e.g., M123 or fig-000001"
         style="flex:1;padding:10px 12px;border:1px solid #444;border-radius:8px;font-size:15px;background:#222;color:#fff;"
         onkeydown="if(event.key==='Enter')searchMinifigById()">
       <button onclick="searchMinifigById()"

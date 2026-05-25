@@ -392,11 +392,51 @@ def get_minifig_sets(set_num):
 
 @app.route("/api/minifig/<minifig_id>")
 def get_minifig(minifig_id):
-    resp = requests.get(
-        f"{RB_BASE}/lego/minifigs/{minifig_id}/",
-        params={"key": API_KEY},
-    )
-    return jsonify(resp.json()), resp.status_code
+    # Try BrickLink first (if it looks like a BrickLink ID - usually numeric or has 'M' prefix)
+    if minifig_id.replace('M', '').replace('-', '').isdigit():
+        try:
+            # Construct BrickLink item URL (M prefix for minifigs)
+            bl_id = minifig_id if minifig_id.startswith('M') else f'M{minifig_id}'
+
+            # Use OAuth to access BrickLink API
+            auth = OAuth1(
+                BL_CONSUMER_KEY,
+                BL_CONSUMER_SECRET,
+                BL_TOKEN,
+                BL_TOKEN_SECRET
+            )
+
+            resp = requests.get(
+                f"https://api.bricklink.com/api/store/v1/items/MINIFIG/{bl_id}",
+                auth=auth
+            )
+
+            if resp.status_code == 200:
+                bl_data = resp.json()
+                if 'data' in bl_data:
+                    item = bl_data['data']
+                    return jsonify({
+                        'fig_num': item.get('no'),
+                        'name': item.get('name'),
+                        'fig_img_url': item.get('image_url'),
+                        'external_id': item.get('no'),
+                        'source': 'bricklink'
+                    }), 200
+        except Exception as e:
+            print(f"BrickLink lookup error: {e}")
+
+    # Fallback to Rebrickable
+    try:
+        resp = requests.get(
+            f"{RB_BASE}/lego/minifigs/{minifig_id}/",
+            params={"key": API_KEY},
+        )
+        if resp.status_code == 200:
+            return jsonify(resp.json()), 200
+    except:
+        pass
+
+    return jsonify({"error": "Minifig not found"}), 404
 
 
 @app.route("/api/minifiglists")
