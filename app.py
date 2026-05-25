@@ -398,8 +398,6 @@ def get_minifig(minifig_id):
 
     is_rebrickable_format = minifig_id.startswith('fig-')
 
-    print(f"[DEBUG] get_minifig called with: {minifig_id}, is_rebrickable_format={is_rebrickable_format}", file=sys.stderr)
-
     if not is_rebrickable_format:
         # Try BrickLink first for non-Rebrickable formats
         try:
@@ -411,25 +409,19 @@ def get_minifig(minifig_id):
                 BL_TOKEN_SECRET
             )
 
-            print(f"[DEBUG] Trying BrickLink for {minifig_id}", file=sys.stderr)
             resp = requests.get(
                 f"https://api.bricklink.com/api/store/v1/items/MINIFIG/{minifig_id}",
                 auth=auth
             )
 
-            print(f"[DEBUG] BrickLink response status: {resp.status_code}", file=sys.stderr)
-            print(f"[DEBUG] BrickLink response (first 200 chars): {resp.text[:200]}", file=sys.stderr)
-
             if resp.status_code == 200:
                 bl_data = resp.json()
-                print(f"[DEBUG] BrickLink JSON parsed, has 'data': {'data' in bl_data}", file=sys.stderr)
                 if 'data' in bl_data:
                     item = bl_data['data']
                     img_url = item.get('image_url', '')
                     # BrickLink returns relative URLs, fix them
                     if img_url.startswith('//'):
                         img_url = 'https:' + img_url
-                    print(f"[DEBUG] Returning BrickLink data for {minifig_id}", file=sys.stderr)
                     return jsonify({
                         'fig_num': item.get('no'),
                         'name': item.get('name'),
@@ -437,14 +429,8 @@ def get_minifig(minifig_id):
                         'external_id': item.get('no'),
                         'source': 'bricklink'
                     }), 200
-                else:
-                    print(f"[DEBUG] BrickLink response missing 'data' key", file=sys.stderr)
-            else:
-                print(f"[DEBUG] BrickLink non-200 response: {resp.status_code}", file=sys.stderr)
         except Exception as e:
-            print(f"[DEBUG] BrickLink lookup error for {minifig_id}: {e}", file=sys.stderr)
-            import traceback
-            traceback.print_exc(file=sys.stderr)
+            print(f"BrickLink lookup error for {minifig_id}: {e}", file=sys.stderr)
 
     # Try Rebrickable (either as primary for fig- format, or as fallback)
     try:
