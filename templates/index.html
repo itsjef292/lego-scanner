@@ -644,7 +644,9 @@
 <div class="mode-tabs">
   <button class="mode-tab active" data-mode="parts" onclick="switchMode('parts')"><img src="/static/brick.svg" style="height:20px;width:auto;vertical-align:middle;margin-right:4px;"> Parts</button>
   <button class="mode-tab" data-mode="minifigs" onclick="switchMode('minifigs')"><img src="/static/minifig.png" style="height:20px;width:auto;vertical-align:middle;margin-right:4px;"> Minifigs</button>
+  <button class="mode-tab" data-mode="sets" onclick="switchMode('sets')">🎁 Sets</button>
   <button class="mode-tab" data-mode="lists" onclick="switchMode('lists')">📋 Lists</button>
+  <button class="mode-tab" data-mode="shopping" onclick="switchMode('shopping')">🛒 Shopping List</button>
 </div>
 
 <!-- Screen 1: Scan -->
@@ -716,11 +718,88 @@
       <option value="">Select a list…</option>
     </select>
   </div>
+
+  <!-- CSV Import Section -->
+  <div style="padding:16px;border-bottom:1px solid #333;">
+    <div style="font-size:13px;color:#aaa;font-weight:600;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.4px;">Import CSV</div>
+    <div style="display:flex;gap:8px;">
+      <input type="file" id="csvFileInput" accept=".csv" style="flex:1;padding:8px 10px;background:#222;color:#aaa;border:1px solid #444;border-radius:8px;font-size:14px;">
+      <button onclick="importCSV()" style="padding:8px 16px;background:#0072CE;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap;">Import</button>
+    </div>
+    <div id="csvStatus" style="font-size:12px;color:#888;margin-top:8px;"></div>
+  </div>
+
   <div id="listsError" class="list-msg"></div>
   <div id="listPartsGrid" style="padding:0 16px 24px;"></div>
   <div id="listLoadMore" style="display:none;text-align:center;padding:0 16px 24px;">
     <button onclick="loadMoreListParts()" style="padding:10px 24px;background:#0072CE;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;">Load More</button>
   </div>
+</div>
+
+<!-- Screen: Shopping List -->
+<div class="screen" id="screen-shopping">
+  <!-- View Tabs -->
+  <div style="padding:16px 16px 0;display:flex;gap:8px;border-bottom:1px solid #333;margin-bottom:16px;">
+    <button onclick="switchShoppingView('list')" id="shoppingViewList" style="padding:8px 12px;background:#0072CE;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">Shopping List</button>
+    <button onclick="switchShoppingView('comparison')" id="shoppingViewComparison" style="padding:8px 12px;background:#333;color:#888;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">Gap Analysis</button>
+  </div>
+
+  <!-- Shopping List View -->
+  <div id="shoppingListView" style="display:block;">
+    <div style="padding:16px;">
+      <div style="font-size:13px;color:#aaa;font-weight:600;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.4px;">Upload CSV: part_num, color, quantity</div>
+      <div style="display:flex;gap:8px;margin-bottom:16px;">
+        <input type="file" id="shoppingCsvFileInput" accept=".csv" style="flex:1;padding:8px 10px;background:#222;color:#aaa;border:1px solid #444;border-radius:8px;font-size:14px;">
+        <button onclick="importShoppingCSV()" style="padding:8px 16px;background:#0072CE;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap;">Import</button>
+        <button onclick="clearAllShoppingItems()" style="padding:8px 16px;background:#3a1618;color:#ffb8bf;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap;">Clear All</button>
+      </div>
+      <div id="shoppingStatus" style="font-size:12px;color:#888;margin-bottom:16px;"></div>
+    </div>
+
+    <div style="padding:0 16px 24px;">
+      <div style="font-size:13px;color:#aaa;font-weight:600;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.4px;">Parts to Order</div>
+      <div id="shoppingListGrid" style="display:grid;grid-template-columns:1fr;gap:12px;"></div>
+    </div>
+  </div>
+
+  <!-- Comparison View -->
+  <div id="shoppingComparisonView" style="display:none;padding:16px;">
+    <div style="font-size:13px;color:#aaa;font-weight:600;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.4px;">Gap Analysis: Have vs Need</div>
+    <div id="comparisonGrid" style="display:grid;grid-template-columns:1fr;gap:8px;"></div>
+  </div>
+</div>
+
+<!-- Screen: Sets -->
+<div class="screen" id="screen-sets" style="padding:20px;gap:16px;">
+  <div style="position:relative;">
+    <label style="display:block;font-size:13px;color:#aaa;margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:0.4px;">Search for LEGO sets</label>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <input type="text" id="setSearchInput" placeholder="e.g., 75060, castle, hogwarts..."
+        style="flex:1;padding:10px 12px;background:#222;color:#fff;border:1px solid #444;border-radius:8px;font-size:15px;"
+        onkeydown="if(event.key==='Enter')searchSetsFromTop()">
+      <button onclick="searchSetsFromTop()"
+        style="padding:10px 16px;background:#0072CE;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap;">Find</button>
+    </div>
+    <div id="setSearchResults" style="position:absolute;top:100%;left:0;right:0;background:#1a1a1a;border:1px solid #444;border-radius:8px;max-height:300px;overflow-y:auto;z-index:100;display:none;margin-top:4px;"></div>
+  </div>
+</div>
+
+<!-- Screen: Set Details -->
+<div class="screen" id="screen-set-details" style="padding:0;">
+  <div style="padding:16px;border-bottom:1px solid #333;display:flex;justify-content:space-between;align-items:center;">
+    <div>
+      <div id="setDetailTitle" style="font-weight:600;font-size:16px;color:#fff;">Loading...</div>
+      <div id="setDetailInfo" style="font-size:13px;color:#888;margin-top:4px;"></div>
+    </div>
+    <button onclick="goTo('screen-sets')" style="padding:8px 12px;background:#444;color:#fff;border:none;border-radius:6px;font-size:14px;cursor:pointer;">← Back</button>
+  </div>
+  <div style="padding:16px;display:flex;gap:8px;align-items:center;">
+    <div style="flex:1;display:flex;gap:4px;">
+      <button onclick="showSetPartsView()" id="tabParts" style="flex:1;padding:8px;background:#0072CE;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">Parts</button>
+      <button onclick="showSetMinifigsView()" id="tabMinifigs" style="flex:1;padding:8px;background:#333;color:#888;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">Minifigs</button>
+    </div>
+  </div>
+  <div id="setDetailsContent" style="padding:16px;"></div>
 </div>
 
 <!-- Screen 2: Loading -->
@@ -955,6 +1034,19 @@
   let capturedObjectUrl = null;
   let mode = 'parts'; // 'parts' | 'minifigs'
 
+  // ── Utility functions ──────────────────────────────────────────────────
+  // Safely escape HTML to prevent XSS when displaying dynamic content
+  function escapeHtml(text) {
+    const map = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#039;'
+    };
+    return text.replace(/[&<>"']/g, m => map[m]);
+  }
+
   // ── Mode switching ──────────────────────────────────────────────────
   function switchMode(m) {
     mode = m;
@@ -973,10 +1065,10 @@
     document.getElementById('brick-content').style.display = m === 'parts' ? '' : 'none';
     document.getElementById('minifig-content').style.display = m === 'minifigs' ? '' : 'none';
 
-    // If we're on the identify screen and switching modes, go back to scan (unless going to lists)
+    // If we're on the identify screen and switching modes, go back to scan (unless going to lists/sets)
     if (document.getElementById('screen-identify').classList.contains('active')) {
-      if (m === 'lists') {
-        // Going to lists, hide identify screen
+      if (m === 'lists' || m === 'sets') {
+        // Going to lists or sets, hide identify screen
         document.getElementById('screen-identify').classList.remove('active');
       } else {
         // Switching parts/minifigs, go back to scan
@@ -984,13 +1076,34 @@
       }
     }
 
-    // Switch between scan screen and lists browser
+    // If we're on set-details and switching to a different mode, go back to sets
+    if (document.getElementById('screen-set-details').classList.contains('active') && m !== 'sets') {
+      document.getElementById('screen-set-details').classList.remove('active');
+    }
+
+    // Switch between scan screen, lists browser, sets browser, and shopping list
     if (m === 'lists') {
       document.getElementById('screen-scan').classList.remove('active');
+      document.getElementById('screen-sets').classList.remove('active');
+      document.getElementById('screen-shopping').classList.remove('active');
       document.getElementById('screen-lists').classList.add('active');
       populateListsViewSelect();
-    } else if (document.getElementById('screen-lists').classList.contains('active')) {
+    } else if (m === 'sets') {
+      document.getElementById('screen-scan').classList.remove('active');
       document.getElementById('screen-lists').classList.remove('active');
+      document.getElementById('screen-shopping').classList.remove('active');
+      document.getElementById('screen-sets').classList.add('active');
+    } else if (m === 'shopping') {
+      document.getElementById('screen-scan').classList.remove('active');
+      document.getElementById('screen-lists').classList.remove('active');
+      document.getElementById('screen-sets').classList.remove('active');
+      document.getElementById('screen-shopping').classList.add('active');
+      loadShoppingList();
+    } else {
+      // parts or minifigs
+      document.getElementById('screen-lists').classList.remove('active');
+      document.getElementById('screen-sets').classList.remove('active');
+      document.getElementById('screen-shopping').classList.remove('active');
       document.getElementById('screen-scan').classList.add('active');
     }
   }
@@ -1001,6 +1114,7 @@
       .then(r => r.json())
       .then(data => {
         const sel = document.getElementById('listSelect');
+        if (!sel) return; // Element not found, exit gracefully
         sel.innerHTML = '';
         // Add blank option for no selection
         const blankOpt = document.createElement('option');
@@ -1009,13 +1123,17 @@
         if (!selectId) blankOpt.selected = true;
         sel.appendChild(blankOpt);
         // Add all lists
-        data.results.forEach(list => {
+        (data.results || []).forEach(list => {
           const opt = document.createElement('option');
           opt.value = list.id;
           opt.textContent = `${list.name} (${list.num_parts} parts)`;
           if (list.id === selectId) opt.selected = true;
           sel.appendChild(opt);
         });
+      })
+      .catch(err => {
+        console.error('Error loading part lists:', err);
+        // Fail gracefully - leave dropdown with blank option
       });
   }
   loadPartlists();
@@ -1131,6 +1249,7 @@
       .then(r => r.json())
       .then(data => {
         const sel = document.getElementById('minifigListSelect');
+        if (!sel) return; // Element not found, exit gracefully
         sel.innerHTML = '';
         (data.results || []).forEach(list => {
           const opt = document.createElement('option');
@@ -1145,6 +1264,10 @@
           opt.textContent = 'No lists yet';
           sel.appendChild(opt);
         }
+      })
+      .catch(err => {
+        console.error('Error loading minifig lists:', err);
+        // Fail gracefully - leave dropdown empty
       });
   }
   loadMinifiglists();
@@ -2516,6 +2639,497 @@
     fetchListPage(listId, ++_listPage, false);
   }
 
+  async function importCSV() {
+    const fileInput = document.getElementById('csvFileInput');
+    const listId = document.getElementById('listsViewSelect').value;
+    const statusDiv = document.getElementById('csvStatus');
+
+    if (!fileInput.files.length) {
+      statusDiv.innerHTML = '<span style="color:#ff6b6b;">Please select a CSV file</span>';
+      return;
+    }
+
+    if (!listId) {
+      statusDiv.innerHTML = '<span style="color:#ff6b6b;">Please select a list first</span>';
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+    formData.append('list_id', listId);
+
+    statusDiv.innerHTML = '<span style="color:#0072CE;">Uploading and importing...</span>';
+
+    try {
+      const resp = await fetch('/api/import-csv', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await resp.json();
+
+      if (!resp.ok) {
+        statusDiv.innerHTML = `<span style="color:#ff6b6b;">Error: ${escapeHtml(data.error || 'Unknown error')}</span>`;
+        return;
+      }
+
+      // Show results
+      let msg = `<span style="color:#19a64a;">✓ Imported ${data.imported} parts</span>`;
+      if (data.failed > 0) {
+        msg += `<br><span style="color:#ff6b6b;">⚠ Failed: ${data.failed}</span>`;
+      }
+      if (data.errors.length > 0) {
+        msg += `<br><span style="color:#888;font-size:11px;">Errors: ${data.errors.slice(0, 3).join('; ')}</span>`;
+      }
+      statusDiv.innerHTML = msg;
+
+      // Clear file input and reload list
+      fileInput.value = '';
+      setTimeout(() => {
+        loadListContents();
+        statusDiv.innerHTML = '';
+      }, 1500);
+
+    } catch (err) {
+      statusDiv.innerHTML = `<span style="color:#ff6b6b;">Error: ${err.message}</span>`;
+    }
+  }
+
+  // Shopping List Functions (using localStorage)
+  function getShoppingList() {
+    const stored = localStorage.getItem('shoppingList');
+    return stored ? JSON.parse(stored) : {};
+  }
+
+  function saveShoppingList(list) {
+    localStorage.setItem('shoppingList', JSON.stringify(list));
+  }
+
+  async function importShoppingCSV() {
+    const fileInput = document.getElementById('shoppingCsvFileInput');
+    const statusDiv = document.getElementById('shoppingStatus');
+
+    if (!fileInput.files.length) {
+      statusDiv.innerHTML = '<span style="color:#ff6b6b;">Please select a CSV file</span>';
+      return;
+    }
+
+    const file = fileInput.files[0];
+    const reader = new FileReader();
+
+    reader.onload = async (e) => {
+      try {
+        const csv = e.target.result;
+        const lines = csv.trim().split('\n');
+        const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+
+        const partNumIdx = headers.indexOf('part_num');
+        const colorIdx = headers.indexOf('color');
+        const qtyIdx = headers.indexOf('quantity');
+
+        if (partNumIdx === -1) {
+          statusDiv.innerHTML = '<span style="color:#ff6b6b;">CSV must have "part_num" column</span>';
+          return;
+        }
+
+        // Fallback colors for when APIs are down
+        const fallbackColors = [
+          {id:1,name:"White"},{id:2,name:"Tan"},{id:3,name:"Light Gray"},{id:4,name:"Dark Gray"},{id:5,name:"Black"},
+          {id:6,name:"Dark Red"},{id:7,name:"Red"},{id:8,name:"Dark Orange"},{id:9,name:"Orange"},{id:10,name:"Yellow"},
+          {id:11,name:"Dark Tan"},{id:12,name:"Dark Green"},{id:13,name:"Green"},{id:14,name:"Dark Blue"},{id:15,name:"Blue"},
+          {id:16,name:"Dark Purple"},{id:17,name:"Purple"},{id:18,name:"Dark Pink"},{id:19,name:"Pink"},{id:20,name:"Dark Brown"},
+          {id:21,name:"Brown"},{id:22,name:"Reddish Brown"},{id:23,name:"Trans-Black"},{id:24,name:"Trans-Red"},{id:25,name:"Trans-Orange"},
+          {id:26,name:"Trans-Yellow"},{id:27,name:"Trans-Clear"},{id:28,name:"Trans-Light Blue"},{id:29,name:"Trans-Blue"},
+          {id:30,name:"Trans-Green"},{id:31,name:"Trans-Brown"},{id:32,name:"Trans-Bright Green"},{id:33,name:"Flat Silver"},
+          {id:34,name:"Chrome Silver"},{id:35,name:"Pearl Gold"},{id:36,name:"Pearl Dark Gray"},{id:37,name:"Pearl Light Gray"},
+          {id:38,name:"Light Bluish Gray"},{id:39,name:"Dark Bluish Gray"},{id:40,name:"Sand Green"},{id:41,name:"Medium Orange"},
+          {id:42,name:"Trans-Neon Orange"},{id:43,name:"Trans-Neon Green"},{id:44,name:"Chrome Gold"},{id:45,name:"Chrome Black"}
+        ];
+
+        // Fetch all colors for lookup (hybrid: Rebrickable + BrickLink, with fallback)
+        let colors = [];
+        try {
+          // Try hybrid endpoint first (both APIs)
+          let resp = await fetch('/api/colors-hybrid');
+          if (!resp.ok) {
+            // Fallback to single API
+            resp = await fetch('/api/colors');
+          }
+
+          if (resp.ok) {
+            colors = await resp.json();
+          } else {
+            // Try cached colors
+            const cached = localStorage.getItem('cachedColors');
+            if (cached) {
+              colors = JSON.parse(cached);
+            } else {
+              throw new Error("All color sources unavailable");
+            }
+          }
+        } catch (err) {
+          // Use fallback colors if everything else fails
+          colors = JSON.parse(localStorage.getItem('cachedColors') || JSON.stringify(fallbackColors));
+          if (colors.length === 0) {
+            colors = fallbackColors;
+          }
+          statusDiv.innerHTML = `<span style="color:#ffaa00;">⚠ Using fallback colors - import may work for common colors</span>`;
+        }
+
+        const colorMap = {};
+        colors.forEach(c => {
+          colorMap[c.name.toLowerCase()] = { id: c.id, name: c.name };
+        });
+
+        // Cache the colors for future use
+        if (colors.length > 0) {
+          localStorage.setItem('cachedColors', JSON.stringify(colors));
+        }
+
+        let imported = 0, failed = 0;
+        const errors = [];
+        const shoppingList = getShoppingList();
+
+        for (let i = 1; i < lines.length; i++) {
+          if (!lines[i].trim()) continue;
+
+          const parts = lines[i].split(',').map(p => p.trim());
+          const partNum = parts[partNumIdx];
+          const colorName = colorIdx >= 0 ? parts[colorIdx] : 'Black';
+          const qty = qtyIdx >= 0 ? parseInt(parts[qtyIdx]) || 1 : 1;
+
+          if (!partNum) {
+            failed++;
+            continue;
+          }
+
+          const colorInfo = colorMap[colorName.toLowerCase()];
+          if (!colorInfo) {
+            failed++;
+            errors.push(`Unknown color '${colorName}' for ${partNum}`);
+            continue;
+          }
+
+          const key = `${partNum}_${colorInfo.id}`;
+          const existing = shoppingList[key];
+          shoppingList[key] = {
+            part_num: partNum,
+            color_id: colorInfo.id,
+            color_name: colorInfo.name,
+            quantity: (existing?.quantity || 0) + qty
+          };
+          imported++;
+        }
+
+        saveShoppingList(shoppingList);
+
+        let msg = `<span style="color:#19a64a;">✓ Added ${imported} items</span>`;
+        if (failed > 0) {
+          msg += `<br><span style="color:#ff6b6b;">⚠ Failed: ${failed}</span>`;
+          if (errors.length > 0) {
+            msg += `<details style="margin-top:8px;color:#aaa;"><summary style="cursor:pointer;color:#ff6b6b;">Show errors</summary><div style="margin-top:8px;max-height:200px;overflow-y:auto;background:#1a1a1a;padding:8px;border-radius:4px;font-size:12px;">`;
+            errors.forEach(err => {
+              msg += `<div style="margin:4px 0;">${err}</div>`;
+            });
+            msg += `</div></details>`;
+          }
+        }
+        statusDiv.innerHTML = msg;
+        fileInput.value = '';
+
+        setTimeout(() => {
+          loadShoppingList();
+          if (failed === 0) statusDiv.innerHTML = ''; // Only clear if no errors
+        }, 1500);
+
+      } catch (err) {
+        statusDiv.innerHTML = `<span style="color:#ff6b6b;">Error: ${escapeHtml(err.message || 'Unknown error')}</span>`;
+      }
+    };
+
+    reader.readAsText(file);
+  }
+
+  async function loadShoppingList() {
+    const list = getShoppingList();
+    const grid = document.getElementById('shoppingListGrid');
+    const items = Object.values(list);
+
+    if (items.length === 0) {
+      grid.innerHTML = '<p style="color:#888;text-align:center;padding:24px 0;">No items in shopping list. Upload a CSV to add parts.</p>';
+      return;
+    }
+
+    // Show loading state
+    grid.innerHTML = '<p style="color:#888;text-align:center;padding:24px 0;">Loading part images...</p>';
+
+    try {
+      // Fetch part metadata for all items
+      const partMetadata = {};
+      for (const item of items) {
+        try {
+          const resp = await fetch(`/api/part/${item.part_num}`);
+          if (resp.ok) {
+            const data = await resp.json();
+            partMetadata[item.part_num] = data.part_img_url;
+          }
+        } catch (e) {
+          // Silently continue if part metadata fails
+        }
+      }
+
+      // Build HTML with images
+      const html = items.map(item => {
+        const img = partMetadata[item.part_num];
+        return `
+          <div style="display:flex;gap:12px;padding:12px;background:#1a1a1a;border:1px solid #333;border-radius:8px;align-items:flex-start;">
+            ${img ? `<img src="${img}" alt="${item.part_num}" style="width:56px;height:56px;object-fit:contain;background:#222;border-radius:4px;flex-shrink:0;">` : `<div style="width:56px;height:56px;background:#222;border-radius:4px;flex-shrink:0;"></div>`}
+            <div style="flex:1;min-width:0;">
+              <div style="font-weight:600;color:#0072CE;font-size:13px;">${item.part_num}</div>
+              <div style="font-size:12px;color:#888;">
+                <span style="display:inline-block;width:12px;height:12px;background:#${getColorHex(item.color_name)};border-radius:2px;margin-right:6px;vertical-align:middle;"></span>
+                ${item.color_name}
+              </div>
+            </div>
+            <div style="text-align:right;flex-shrink:0;">
+              <div style="font-weight:600;color:#fff;font-size:16px;">${item.quantity}</div>
+              <div style="color:#888;font-size:11px;">qty</div>
+            </div>
+            <button onclick="removeShoppingItem('${item.part_num}_${item.color_id}')"
+              style="padding:6px 10px;background:#3a1618;color:#ffb8bf;border:none;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;">✕</button>
+          </div>
+        `;
+      }).join('');
+
+      grid.innerHTML = html;
+    } catch (err) {
+      console.error('Error loading shopping list:', err);
+      grid.innerHTML = '<p style="color:#ff6b6b;">Error loading shopping list</p>';
+    }
+  }
+
+  function removeShoppingItem(key) {
+    const list = getShoppingList();
+    delete list[key];
+    saveShoppingList(list);
+    loadShoppingList();
+  }
+
+  function clearAllShoppingItems() {
+    if (confirm('Are you sure you want to delete all items in your shopping list? This cannot be undone.')) {
+      saveShoppingList({});
+      loadShoppingList();
+      document.getElementById('shoppingStatus').innerHTML = '<span style="color:#19a64a;">✓ Shopping list cleared</span>';
+      setTimeout(() => {
+        document.getElementById('shoppingStatus').innerHTML = '';
+      }, 2000);
+    }
+  }
+
+  function getColorHex(colorName) {
+    // Simple fallback color map
+    const colors = {
+      'Black': '333333', 'White': 'ffffff', 'Red': 'c91a09', 'Blue': '0055bf',
+      'Yellow': 'f2cd2e', 'Green': '007221', 'Brown': '703118', 'Gray': 'a4a4a4'
+    };
+    return colors[colorName] || 'ccc';
+  }
+
+  function switchShoppingView(view) {
+    const listView = document.getElementById('shoppingListView');
+    const compView = document.getElementById('shoppingComparisonView');
+    const listBtn = document.getElementById('shoppingViewList');
+    const compBtn = document.getElementById('shoppingViewComparison');
+
+    if (view === 'list') {
+      listView.style.display = 'block';
+      compView.style.display = 'none';
+      listBtn.style.background = '#0072CE';
+      listBtn.style.color = '#fff';
+      compBtn.style.background = '#333';
+      compBtn.style.color = '#888';
+    } else {
+      listView.style.display = 'none';
+      compView.style.display = 'block';
+      listBtn.style.background = '#333';
+      listBtn.style.color = '#888';
+      compBtn.style.background = '#0072CE';
+      compBtn.style.color = '#fff';
+      loadComparisonView();
+    }
+  }
+
+  async function loadComparisonView(forceRefresh = false) {
+    const shoppingList = getShoppingList();
+    const shoppingItems = Object.values(shoppingList);
+    const comparisonGrid = document.getElementById('comparisonGrid');
+
+    if (shoppingItems.length === 0) {
+      comparisonGrid.innerHTML =
+        '<p style="color:#888;text-align:center;padding:24px 0;">No items in shopping list yet.</p>';
+      return;
+    }
+
+    // Try to use cached inventory (30 minute cache)
+    const cacheKey = 'inventoryCache';
+    const cached = localStorage.getItem(cacheKey);
+    const now = Date.now();
+    const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
+
+    let inventory = null;
+    let cacheAge = null;
+
+    if (cached && !forceRefresh) {
+      const cacheData = JSON.parse(cached);
+      if (now - cacheData.timestamp < CACHE_DURATION) {
+        inventory = cacheData.inventory;
+        cacheAge = Math.round((now - cacheData.timestamp) / 1000 / 60);
+        console.log(`Using cached inventory (${cacheAge} min old)`);
+      }
+    }
+
+    // If not cached or cache expired, fetch fresh data
+    if (!inventory) {
+      comparisonGrid.innerHTML = '<p style="color:#888;text-align:center;padding:24px 0;">Loading inventory...</p>';
+
+      try {
+        const partlistsResp = await fetch('/api/partlists');
+
+        // Check for rate limit (429 Too Many Requests)
+        if (partlistsResp.status === 429) {
+          comparisonGrid.innerHTML =
+            '<p style="color:#ff8080;text-align:center;padding:24px 0;">⚠️ Rebrickable API rate limited. Please wait 1-2 hours and try again. <button onclick="loadComparisonView(true)" style="margin-top:12px;padding:8px 16px;background:#0072CE;color:#fff;border:none;border-radius:4px;cursor:pointer;">Retry</button></p>';
+          return;
+        }
+
+        const partlistsData = await partlistsResp.json();
+        const partlists = partlistsData.results || [];
+
+        // Find the "in inventory" list
+        const inventoryList = partlists.find(list => list.name.toLowerCase() === "in inventory");
+        if (!inventoryList) {
+          comparisonGrid.innerHTML =
+            '<p style="color:#ff8080;text-align:center;padding:24px 0;">Error: "in inventory" list not found. Please create it in Rebrickable.</p>';
+          return;
+        }
+
+        // Build inventory map from "in inventory" list only: part_num_color_id -> quantity
+        inventory = {};
+        let page = 1;
+        let hasMore = true;
+        while (hasMore) {
+          const resp = await fetch(`/api/partlists/${inventoryList.id}/parts?page=${page}`);
+
+          if (resp.status === 429) {
+            comparisonGrid.innerHTML =
+              '<p style="color:#ff8080;text-align:center;padding:24px 0;">⚠️ Rebrickable API rate limited. Please wait 1-2 hours and try again.</p>';
+            return;
+          }
+
+          const data = await resp.json();
+          const parts = data.results || [];
+
+          parts.forEach(p => {
+            const key = `${p.part.part_num}_${p.color.id}`;
+            inventory[key] = (inventory[key] || 0) + p.quantity;
+          });
+
+          hasMore = data.next !== null;
+          page++;
+
+          // Add delay between pages to respect 60 req/min rate limit (1 request/sec)
+          // Backend throttles to 1 request/sec, frontend adds extra buffer (1.2 seconds)
+          if (hasMore) {
+            await new Promise(resolve => setTimeout(resolve, 1200));
+          }
+        }
+
+        // Cache the inventory
+        localStorage.setItem(cacheKey, JSON.stringify({
+          inventory,
+          timestamp: now
+        }));
+        cacheAge = 0;
+      } catch (err) {
+        comparisonGrid.innerHTML =
+          `<p style="color:#ff8080;text-align:center;padding:24px 0;">Error loading inventory: ${err.message}</p>`;
+        return;
+      }
+    }
+
+      // Build comparison rows
+      const rows = shoppingItems.map(item => {
+        const key = `${item.part_num}_${item.color_id}`;
+        const have = inventory[key] || 0;
+        const need = item.quantity;
+        const gap = Math.max(0, need - have);
+        const isFull = gap === 0;
+
+        return {
+          item,
+          have,
+          need,
+          gap,
+          isFull,
+          key
+        };
+      });
+
+      // Sort: show gaps first, then complete
+      rows.sort((a, b) => (a.gap > 0 ? -1 : 1) - (b.gap > 0 ? -1 : 1));
+
+      const html = rows.map(row => {
+        const bgColor = row.isFull ? '#0a2a0a' : '#2a0a0a';
+        const textColor = row.isFull ? '#19a64a' : '#ff8080';
+        const statusText = row.isFull ? '✓ Complete' : `⚠ Need ${row.gap} more`;
+
+        return `
+          <div style="display:flex;gap:12px;padding:12px;background:${bgColor};border:1px solid ${row.isFull ? '#1a5a1a' : '#5a1a1a'};border-radius:8px;align-items:center;">
+            <div style="flex:1;min-width:0;">
+              <div style="font-weight:600;color:#0072CE;font-size:13px;">${row.item.part_num}</div>
+              <div style="font-size:12px;color:#888;">
+                <span style="display:inline-block;width:10px;height:10px;background:#${getColorHex(row.item.color_name)};border-radius:2px;margin-right:6px;vertical-align:middle;"></span>
+                ${row.item.color_name}
+              </div>
+            </div>
+            <div style="text-align:right;flex-shrink:0;display:grid;grid-template-columns:auto auto auto;gap:16px;align-items:center;">
+              <div style="font-size:12px;">
+                <div style="color:#888;font-size:11px;">Have</div>
+                <div style="color:#fff;font-weight:600;">${row.have}</div>
+              </div>
+              <div style="font-size:12px;">
+                <div style="color:#888;font-size:11px;">Need</div>
+                <div style="color:#0072CE;font-weight:600;">${row.need}</div>
+              </div>
+              <div style="font-size:12px;">
+                <div style="color:#888;font-size:11px;">Gap</div>
+                <div style="color:${textColor};font-weight:600;">${row.gap}</div>
+              </div>
+            </div>
+            <button onclick="removeShoppingItem('${row.key}')"
+              style="padding:4px 8px;background:#333;color:#aaa;border:none;border-radius:4px;font-size:12px;cursor:pointer;">✕</button>
+          </div>
+        `;
+      }).join('');
+
+      // Add cache info header
+      const cacheText = cacheAge === 0 ? 'just now' : cacheAge === 1 ? '1 min ago' : `${cacheAge} min ago`;
+      const header = `
+        <div style="margin-bottom:16px;padding:12px;background:#1a3a1a;border:1px solid #2a5a2a;border-radius:8px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div style="color:#888;font-size:13px;">
+              Inventory data: <span style="color:#19a64a;">${cacheText}</span> (cached for 30 min)
+            </div>
+            <button onclick="loadComparisonView(true)" style="padding:6px 12px;background:#0072CE;color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer;">
+              🔄 Refresh Now
+            </button>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('comparisonGrid').innerHTML = header + html;
+  }
+
   function fetchListPage(listId, page, replace) {
     const listErr = document.getElementById('listsError');
     listErr.style.display = 'none';
@@ -2718,6 +3332,244 @@
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       closeImageModal();
+    }
+  });
+
+  // ── Sets Search (Top Header) ────────────────────────────────────────
+  async function searchSetsFromTop() {
+    const query = document.getElementById('setSearchInput').value.trim();
+    const resultsDiv = document.getElementById('setSearchResults');
+
+    if (!query) {
+      resultsDiv.style.display = 'none';
+      return;
+    }
+
+    try {
+      const resp = await fetch(`/api/search_sets?q=${encodeURIComponent(query)}`);
+      const data = await resp.json();
+
+      if (!resp.ok) {
+        resultsDiv.innerHTML = `<div style="padding:12px;color:#ff6b6b;font-size:13px;">${escapeHtml(data.error || 'Search failed')}</div>`;
+        resultsDiv.style.display = 'block';
+        return;
+      }
+
+      const sets = data.results || [];
+      if (sets.length === 0) {
+        resultsDiv.innerHTML = `<div style="padding:12px;color:#aaa;font-size:13px;">No sets found</div>`;
+        resultsDiv.style.display = 'block';
+        return;
+      }
+
+      // Format and display results
+      let html = '';
+      sets.forEach((set, idx) => {
+        const dataSetNum = escapeHtml(set.set_num || '');
+        const dataSetName = escapeHtml(set.name || '');
+        const imgUrl = set.image_url ? escapeHtml(set.image_url) : '/static/brick.svg';
+        const displayYear = set.year ? 'Year: ' + escapeHtml(String(set.year)) : '—';
+        const displayParts = set.part_count ? ' • ' + escapeHtml(String(set.part_count)) + ' parts' : '';
+
+        html += `
+          <div class="set-result" data-set-index="${idx}" data-set-num="${dataSetNum}" data-set-name="${dataSetName}" data-set-img="${imgUrl}"
+            style="display:flex;gap:10px;padding:10px;border-bottom:1px solid #333;cursor:pointer;transition:background 0.15s;"
+            onmouseover="this.style.background='#222'"
+            onmouseout="this.style.background='transparent'">
+            <img src="${imgUrl}" alt="${dataSetNum}" onerror="this.src='/static/brick.svg'" style="width:50px;height:50px;object-fit:contain;background:#0a0a0a;border-radius:4px;flex-shrink:0;">
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;">
+              <div style="font-weight:600;color:#0072CE;font-size:14px;margin-bottom:2px;">${dataSetNum}</div>
+              <div style="color:#fff;font-size:13px;margin-bottom:4px;word-break:break-word;">${dataSetName}</div>
+              <div style="color:#888;font-size:12px;">
+                ${displayYear}
+                ${displayParts}
+              </div>
+            </div>
+          </div>
+        `;
+      });
+      resultsDiv.innerHTML = html;
+      resultsDiv.style.display = 'block';
+
+      // Add event listeners for set results (instead of inline onclick for safety)
+      resultsDiv.querySelectorAll('.set-result').forEach(el => {
+        el.addEventListener('click', () => {
+          const setNum = el.getAttribute('data-set-num');
+          const setName = el.getAttribute('data-set-name');
+          const imgUrl = el.getAttribute('data-set-img');
+          selectSetFromSearch(setNum, setName, imgUrl);
+        });
+      });
+    } catch (err) {
+      console.error('Set search error:', err);
+      resultsDiv.innerHTML = `<div style="padding:12px;color:#ff6b6b;font-size:13px;">Network error. Please try again.</div>`;
+      resultsDiv.style.display = 'block';
+    }
+  }
+
+  function selectSetFromSearch(setNum, setName, imgUrl) {
+    // Close the dropdown
+    document.getElementById('setSearchResults').style.display = 'none';
+    document.getElementById('setSearchInput').value = '';
+
+    // Load set details
+    loadSetDetails(setNum, setName);
+  }
+
+  function loadSetDetails(setNum, setName) {
+    // Show the set details screen
+    goTo('screen-set-details');
+
+    // Update header
+    document.getElementById('setDetailTitle').textContent = setName;
+    document.getElementById('setDetailInfo').textContent = `Set ${setNum}`;
+
+    // Clear previous content
+    document.getElementById('setDetailsContent').innerHTML = '<p style="color:#888;text-align:center;padding:20px;">Loading set inventory...</p>';
+
+    // Store current set for switching views
+    window.currentSetNum = setNum;
+    window.currentSetName = setName;
+
+    // Show parts view by default
+    showSetPartsView();
+  }
+
+  async function showSetPartsView() {
+    const setNum = window.currentSetNum;
+    if (!setNum) return;
+
+    // Update tab styling
+    document.getElementById('tabParts').style.background = '#0072CE';
+    document.getElementById('tabParts').style.color = '#fff';
+    document.getElementById('tabMinifigs').style.background = '#333';
+    document.getElementById('tabMinifigs').style.color = '#888';
+
+    const contentDiv = document.getElementById('setDetailsContent');
+    contentDiv.innerHTML = '<p style="color:#888;text-align:center;padding:20px;">Loading parts...</p>';
+
+    try {
+      const resp = await fetch(`/api/sets/${encodeURIComponent(setNum)}/parts`);
+      const data = await resp.json();
+
+      const parts = data.results || [];
+      if (parts.length === 0) {
+        contentDiv.innerHTML = '<p style="color:#888;text-align:center;padding:20px;">No parts found in this set</p>';
+        return;
+      }
+
+      // Group parts by color
+      let html = '';
+      parts.forEach((part, idx) => {
+        const partImage = part.part_img_url || '/static/brick.svg';
+        const partName = part.part_name || 'Unknown Part';
+        const partNum = part.part_num || 'N/A';
+        const colorName = part.color_name || 'Unknown Color';
+        const quantity = part.quantity || 1;
+        const colorHex = part.color_rgb ? '#' + part.color_rgb : '#888';
+
+        html += `
+          <div style="display:flex;gap:12px;padding:12px;border-bottom:1px solid #333;align-items:flex-start;">
+            <img src="${partImage}" alt="${partNum}" style="width:50px;height:50px;object-fit:contain;background:#222;border-radius:4px;flex-shrink:0;">
+            <div style="flex:1;min-width:0;">
+              <div style="font-weight:600;color:#0072CE;font-size:13px;margin-bottom:2px;">${partNum}</div>
+              <div style="color:#fff;font-size:12px;margin-bottom:4px;word-break:break-word;">${partName}</div>
+              <div style="display:flex;align-items:center;gap:6px;font-size:12px;">
+                <span style="width:16px;height:16px;border-radius:3px;background:${colorHex};border:1px solid #555;"></span>
+                <span style="color:#aaa;">${colorName}</span>
+              </div>
+            </div>
+            <div style="text-align:right;flex-shrink:0;">
+              <div style="font-weight:600;color:#fff;font-size:14px;">${quantity}</div>
+              <div style="color:#888;font-size:11px;">qty</div>
+            </div>
+          </div>
+        `;
+      });
+
+      contentDiv.innerHTML = html;
+    } catch (err) {
+      console.error('Error loading parts:', err);
+      contentDiv.innerHTML = '<p style="color:#ff6b6b;padding:20px;">Failed to load parts</p>';
+    }
+  }
+
+  async function showSetMinifigsView() {
+    const setNum = window.currentSetNum;
+    if (!setNum) return;
+
+    // Update tab styling
+    document.getElementById('tabParts').style.background = '#333';
+    document.getElementById('tabParts').style.color = '#888';
+    document.getElementById('tabMinifigs').style.background = '#0072CE';
+    document.getElementById('tabMinifigs').style.color = '#fff';
+
+    const contentDiv = document.getElementById('setDetailsContent');
+    contentDiv.innerHTML = '<p style="color:#888;text-align:center;padding:20px;">Loading minifigs...</p>';
+
+    try {
+      const resp = await fetch(`/api/sets/${encodeURIComponent(setNum)}/minifigs`);
+      const data = await resp.json();
+
+      const minifigs = data.results || [];
+      if (minifigs.length === 0) {
+        contentDiv.innerHTML = '<p style="color:#888;text-align:center;padding:20px;">No minifigs in this set</p>';
+        return;
+      }
+
+      let html = '';
+      minifigs.forEach((fig) => {
+        const figImage = fig.fig_img_url || '/static/minifig.png';
+        const figName = fig.fig_name || 'Unknown Minifig';
+        const figNum = fig.fig_num || 'N/A';
+        const quantity = fig.quantity || 1;
+
+        html += `
+          <div style="display:flex;gap:12px;padding:12px;border-bottom:1px solid #333;align-items:flex-start;">
+            <img src="${figImage}" alt="${figNum}" style="width:50px;height:50px;object-fit:contain;background:#222;border-radius:4px;flex-shrink:0;">
+            <div style="flex:1;min-width:0;">
+              <div style="font-weight:600;color:#0072CE;font-size:13px;margin-bottom:2px;">${figNum}</div>
+              <div style="color:#fff;font-size:12px;word-break:break-word;">${figName}</div>
+            </div>
+            <div style="text-align:right;flex-shrink:0;">
+              <div style="font-weight:600;color:#fff;font-size:14px;">${quantity}</div>
+              <div style="color:#888;font-size:11px;">qty</div>
+            </div>
+          </div>
+        `;
+      });
+
+      contentDiv.innerHTML = html;
+    } catch (err) {
+      console.error('Error loading minifigs:', err);
+      contentDiv.innerHTML = '<p style="color:#ff6b6b;padding:20px;">Failed to load minifigs</p>';
+    }
+  }
+
+  function showToast(message) {
+    // Create a simple toast notification
+    const toast = document.createElement('div');
+    toast.style.cssText = 'position:fixed;bottom:20px;left:20px;right:20px;background:#0072CE;color:#fff;padding:12px 16px;border-radius:8px;font-size:14px;z-index:1000;box-shadow:0 2px 8px rgba(0,0,0,0.3);';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+
+    // Auto-dismiss after 3 seconds
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transition = 'opacity 0.3s';
+      setTimeout(() => toast.remove(), 300);
+    }, 3000);
+  }
+
+  // Hide dropdown when clicking outside
+  document.addEventListener('click', (e) => {
+    const searchInput = document.getElementById('setSearchInput');
+    const resultsDiv = document.getElementById('setSearchResults');
+    if (searchInput && resultsDiv) {
+      const searchContainer = searchInput.closest('div');
+      if (searchContainer && !searchContainer.contains(e.target) && !resultsDiv.contains(e.target)) {
+        resultsDiv.style.display = 'none';
+      }
     }
   });
 </script>
