@@ -907,7 +907,7 @@
   <!-- Minifig note -->
   <div id="minifigListRow" style="padding:0 0 8px;display:none;">
     <p style="margin:0;font-size:13px;color:var(--muted);line-height:1.4;">
-      Minifig tracking isn't available via the Rebrickable API — use the link above to view it on Rebrickable directly.
+      Scan or search a minifig to add it to your Rebrickable collection.
     </p>
   </div>
 </div>
@@ -1987,7 +1987,9 @@
     const addBtn = document.getElementById('addBtn');
     const addPartsBtn = document.getElementById('addAllPartsBtn');
     if (isMinifig) {
-      addBtn.style.display = 'none';
+      addBtn.style.display = '';
+      addBtn.textContent = 'Add to My Minifigs';
+      addBtn.onclick = addMinifig;
       addPartsBtn.style.display = '';
       renderInventoryStatus(0, 'hidden');
     } else {
@@ -2612,13 +2614,10 @@
     err.style.display = 'none';
     if (!selectedPart) { err.textContent = 'No minifig selected.'; err.style.display = 'block'; return; }
     const qty = parseInt(document.getElementById('quantityInput').value) || 1;
-    const listId = document.getElementById('minifigListSelect').value;
-    const listName = document.getElementById('minifigListSelect').selectedOptions[0]?.text || '';
-    if (!listId) { err.textContent = 'Please create a minifig list first.'; err.style.display = 'block'; return; }
     fetch('/api/add_minifig', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ list_id: listId, set_num: selectedPart.id, quantity: qty })
+      body: JSON.stringify({ list_id: 0, set_num: selectedPart.id, quantity: qty })
     })
     .then(r => r.json().then(data => ({ ok: r.ok, data })))
     .then(({ ok, data }) => {
@@ -2627,17 +2626,15 @@
         err.textContent = `Error: ${msg}`; err.style.display = 'block'; return;
       }
       const figLabel = selectedPart.name || selectedPart.id;
-      const list = listName.split(' (')[0];
       if (data._updated) {
         const prev = data._previous_quantity;
         document.getElementById('successMsg').textContent =
-          `${figLabel} updated: ${prev} → ${prev + qty} in "${list}".`;
+          `${figLabel} updated: ${prev} → ${prev + qty} in your minifig collection.`;
       } else {
         document.getElementById('successMsg').textContent =
-          `${qty}× ${figLabel} added to "${list}".`;
+          `${qty}× ${figLabel} added to your minifig collection.`;
       }
       document.getElementById('successTitle').textContent = 'Minifig Added!';
-      loadMinifiglists(parseInt(listId));
       goTo('screen-success');
     })
     .catch(() => { err.textContent = 'Network error.'; err.style.display = 'block'; });

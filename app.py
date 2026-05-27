@@ -716,65 +716,40 @@ def get_minifig(minifig_id):
 
 @app.route("/api/minifiglists")
 def get_minifiglists():
-    try:
-        resp = rebrickable_get(
-            f"/users/{USER_TOKEN}/minifiglists/",
-            params={"key": API_KEY}
-        )
-        # If rate limited, preserve the 429 status for frontend to detect
-        if resp.status_code in [429, 503]:
-            return jsonify({"results": [], "error": "Rate limited or service unavailable"}), resp.status_code
-        resp.raise_for_status()
-        return jsonify(resp.json()), resp.status_code
-    except Exception as e:
-        print(f"⚠ Error fetching minifiglists: {e}")
-        # Return 503 for other errors so frontend knows something went wrong
-        return jsonify({"results": [], "error": str(e)}), 503
+    # Rebrickable has no separate minifig-lists API — only a single flat
+    # collection at /users/{token}/minifigs/. Return a synthetic list so the
+    # frontend list-picker works without changes.
+    return jsonify({"count": 1, "results": [{"id": 0, "name": "My Minifigs"}]}), 200
 
 
 @app.route("/api/minifiglists", methods=["POST"])
 def create_minifiglist():
-    name = (request.json or {}).get("name", "").strip()
-    if not name:
-        return jsonify({"error": "Name is required"}), 400
-    resp = requests.post(
-        f"{RB_BASE}/users/{USER_TOKEN}/minifiglists/",
-        params={"key": API_KEY},
-        data={"name": name},
-    )
-    return jsonify(resp.json()), resp.status_code
+    return jsonify({"error": "Rebrickable does not support multiple minifig lists"}), 400
 
 
 @app.route("/api/minifiglists/<int:list_id>", methods=["DELETE"])
 def delete_minifiglist(list_id):
-    resp = requests.delete(
-        f"{RB_BASE}/users/{USER_TOKEN}/minifiglists/{list_id}/",
-        params={"key": API_KEY},
-    )
-    if resp.status_code == 204:
-        return '', 204
-    return jsonify(resp.json()), resp.status_code
+    return jsonify({"error": "Rebrickable does not support multiple minifig lists"}), 400
 
 
 @app.route("/api/add_minifig", methods=["POST"])
 def add_minifig():
     data = request.json
-    list_id = data["list_id"]
     set_num = data["set_num"]
     quantity = int(data["quantity"])
 
+    print(f"[add_minifig] set_num={set_num} qty={quantity}")
+
     existing = requests.get(
-        f"{RB_BASE}/users/{USER_TOKEN}/minifiglists/{list_id}/minifigs/{set_num}/",
+        f"{RB_BASE}/users/{USER_TOKEN}/minifigs/{set_num}/",
         params={"key": API_KEY},
     )
-
-    print(f"[add_minifig] list={list_id} set_num={set_num} qty={quantity}")
 
     if existing.status_code == 200:
         current_qty = existing.json().get("quantity", 0)
         new_qty = current_qty + quantity
         resp = requests.put(
-            f"{RB_BASE}/users/{USER_TOKEN}/minifiglists/{list_id}/minifigs/{set_num}/",
+            f"{RB_BASE}/users/{USER_TOKEN}/minifigs/{set_num}/",
             params={"key": API_KEY},
             data={"quantity": new_qty},
         )
@@ -784,7 +759,7 @@ def add_minifig():
         return jsonify(result), resp.status_code
     else:
         resp = requests.post(
-            f"{RB_BASE}/users/{USER_TOKEN}/minifiglists/{list_id}/minifigs/",
+            f"{RB_BASE}/users/{USER_TOKEN}/minifigs/",
             params={"key": API_KEY},
             data={"set_num": set_num, "quantity": quantity},
         )
