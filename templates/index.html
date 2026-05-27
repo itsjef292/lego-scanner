@@ -1317,6 +1317,12 @@
   let mode = 'parts'; // 'parts' | 'minifigs'
 
   // ── Utility functions ──────────────────────────────────────────────────
+  function decodeHtmlEntities(text) {
+    const el = document.createElement('textarea');
+    el.innerHTML = text;
+    return el.value;
+  }
+
   // Safely escape HTML to prevent XSS when displaying dynamic content
   function escapeHtml(text) {
     const map = {
@@ -1954,7 +1960,7 @@
     selectedPart = { ...item, blId };
     renderInventoryStatus(0);
 
-    document.getElementById('partName').textContent = item.name || item.id;
+    document.getElementById('partName').textContent = decodeHtmlEntities(item.name || item.id);
     document.getElementById('catalogImg').src = item.img_url || '';
 
     if (isMinifig) {
@@ -2214,7 +2220,7 @@
         document.getElementById('altRow').innerHTML = alts.map((alt, i) => `
           <div class="alt-card" id="alt-${i}" onclick="selectAlternative(${i})">
             <img src="${alt.img_url || ''}" style="display:${alt.img_url ? 'block' : 'none'}" onerror="this.parentElement.style.minHeight='0'">
-            <div class="alt-name">${alt.name || alt.id}</div>
+            <div class="alt-name">${decodeHtmlEntities(alt.name || alt.id)}</div>
             <div class="alt-score">${Math.round((alt.score||0)*100)}%</div>
           </div>`).join('');
         window._altItems = alts;

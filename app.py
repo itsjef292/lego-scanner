@@ -645,47 +645,44 @@ def get_minifig_sets(set_num):
 
 @app.route("/api/minifig/<minifig_id>")
 def get_minifig(minifig_id):
-    # Determine which source to try first
-    # If it starts with "fig-", it's a Rebrickable format - try that first
-    # Otherwise, assume it's a BrickLink format (e.g., sw1094, col001, M123)
-
     is_rebrickable_format = minifig_id.startswith('fig-')
+    bl_error_status = None
 
-    if not is_rebrickable_format:
-        # Try BrickLink first for non-Rebrickable formats
+    def try_bricklink(fig_id):
+        nonlocal bl_error_status
         try:
-            # Use OAuth to access BrickLink API
-            auth = OAuth1(
-                BL_CONSUMER_KEY,
-                BL_CONSUMER_SECRET,
-                BL_TOKEN,
-                BL_TOKEN_SECRET
-            )
-
+            auth = OAuth1(BL_CONSUMER_KEY, BL_CONSUMER_SECRET, BL_TOKEN, BL_TOKEN_SECRET)
             resp = requests.get(
-                f"https://api.bricklink.com/api/store/v1/items/MINIFIG/{minifig_id}",
-                auth=auth
+                f"https://api.bricklink.com/api/store/v1/items/MINIFIG/{fig_id}",
+                auth=auth, timeout=8
             )
-
+            bl_error_status = resp.status_code
             if resp.status_code == 200:
                 bl_data = resp.json()
                 if 'data' in bl_data:
                     item = bl_data['data']
                     img_url = item.get('image_url', '')
-                    # BrickLink returns relative URLs, fix them
                     if img_url.startswith('//'):
                         img_url = 'https:' + img_url
-                    return jsonify({
+                    return {
                         'fig_num': item.get('no'),
                         'name': item.get('name'),
                         'fig_img_url': img_url,
                         'external_id': item.get('no'),
                         'source': 'bricklink'
-                    }), 200
+                    }
+            else:
+                print(f"BrickLink {resp.status_code} for {fig_id}: {resp.text[:200]}", file=sys.stderr)
         except Exception as e:
-            print(f"BrickLink lookup error for {minifig_id}: {e}", file=sys.stderr)
+            print(f"BrickLink error for {fig_id}: {e}", file=sys.stderr)
+        return None
 
-    # Try Rebrickable (either as primary for fig- format, or as fallback)
+    if not is_rebrickable_format:
+        result = try_bricklink(minifig_id)
+        if result:
+            return jsonify(result), 200
+
+    # Try Rebrickable (primary for fig- format, fallback for BL format)
     try:
         resp = requests.get(
             f"{RB_BASE}/lego/minifigs/{minifig_id}/",
@@ -696,39 +693,23 @@ def get_minifig(minifig_id):
     except Exception as e:
         print(f"Rebrickable lookup error: {e}")
 
-    # If BrickLink format and Rebrickable didn't work, try BrickLink one more time
-    # (in case it's a format we didn't recognize)
     if is_rebrickable_format:
-        try:
-            auth = OAuth1(
-                BL_CONSUMER_KEY,
-                BL_CONSUMER_SECRET,
-                BL_TOKEN,
-                BL_TOKEN_SECRET
-            )
+        result = try_bricklink(minifig_id)
+        if result:
+            return jsonify(result), 200
 
-            resp = requests.get(
-                f"https://api.bricklink.com/api/store/v1/items/MINIFIG/{minifig_id}",
-                auth=auth
-            )
-
-            if resp.status_code == 200:
-                bl_data = resp.json()
-                if 'data' in bl_data:
-                    item = bl_data['data']
-                    img_url = item.get('image_url', '')
-                    # BrickLink returns relative URLs, fix them
-                    if img_url.startswith('//'):
-                        img_url = 'https:' + img_url
-                    return jsonify({
-                        'fig_num': item.get('no'),
-                        'name': item.get('name'),
-                        'fig_img_url': img_url,
-                        'external_id': item.get('no'),
-                        'source': 'bricklink'
-                    }), 200
-        except Exception as e:
-            print(f"BrickLink fallback lookup error for {minifig_id}: {e}", file=sys.stderr)
+    # Fallback for BL-format IDs: return partial data using direct image URL
+    # (works even when BrickLink API is blocked, e.g. on cloud hosting)
+    if not is_rebrickable_format:
+        img_url = f"https://img.bricklink.com/ML/{minifig_id}.jpg"
+        print(f"BrickLink API unavailable (status={bl_error_status}), using image fallback for {minifig_id}", file=sys.stderr)
+        return jsonify({
+            'fig_num': minifig_id,
+            'name': minifig_id,
+            'fig_img_url': img_url,
+            'external_id': minifig_id,
+            'source': 'fallback'
+        }), 200
 
     return jsonify({"error": "Minifig not found"}), 404
 
