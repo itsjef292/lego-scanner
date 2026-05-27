@@ -168,16 +168,80 @@ Single-page app with 5 screens:
 
 **Quantity Reset:** Moved to start of identify screen to prevent async rendering timing issues on iOS Safari.
 
+**Rate Limiting & Security Improvements (May 2026):**
+
+*Rate Limiting (60 req/min compliance):*
+- Implemented request throttler to enforce 1 request/second to Rebrickable API
+- Added `throttle_rebrickable_request()` function that delays requests as needed
+- Created `rebrickable_get()` wrapper for all Rebrickable API calls
+- Updated all key endpoints to use throttled function:
+  - `/api/partlists` — Uses throttled request
+  - `/api/colors-hybrid` — Pagination respects rate limit
+  - `/api/partlists/<id>/parts` — Pagination with per-page delays
+  - `/api/part/<part_num>` — Single-part lookups throttled
+  - `/api/part_colors/<part_num>` — Color list fetches throttled
+  - `/api/minifiglists` — Minifig list loads throttled
+- Frontend pagination delay increased from 500ms to 1200ms for gap analysis
+- Rate limit counter shows usage per minute in logs: `⏳ Rate limit: waiting X.XXs (N/60 requests used)`
+
+*Security Fixes (XSS prevention):*
+- Added `escapeHtml()` utility function to safely escape HTML special characters
+- Fixed XSS in error messages by escaping API responses before `innerHTML` insertion
+- Replaced weak inline `onclick` handlers with event listeners for set search results
+- Set names and URLs now stored in data attributes and escaped before rendering
+- Image URLs validated with onerror fallback to prevent protocol injection
+- Rate limit status codes (429/503) now preserved from API instead of converted to 200
+
+**Implementation details:**
+- All Rebrickable API calls go through `rebrickable_get()` which applies throttling
+- Backend automatically sleeps before each request to maintain 1 req/sec average
+- Request counter tracks per-minute usage with automatic reset
+- Frontend error messages safely escape API response text
+- Event-based DOM updates prevent attribute injection vectors
+
 ---
 
 ## Common Development Patterns
 
+### Rate Limiting: Adding New Rebrickable API Calls
+
+**CRITICAL: All Rebrickable API calls must use the `rebrickable_get()` function to respect the 60 req/min rate limit.**
+
+When adding a new endpoint that calls Rebrickable:
+
+```python
+# ❌ WRONG - Direct requests bypass rate limiting
+resp = requests.get(f"{RB_BASE}/lego/...", params={"key": API_KEY})
+
+# ✅ CORRECT - Uses throttled wrapper
+resp = rebrickable_get("/lego/...", params={"key": API_KEY})
+```
+
+For pagination loops, the throttling is automatic per request:
+
+```python
+url = f"{RB_BASE}/lego/colors/"
+while url:
+    resp = rebrickable_get(url, params={"key": API_KEY, "page_size": 200})
+    # Process response, throttling is applied automatically
+    url = resp.json().get("next")
+```
+
+**Frontend pagination:** Add 1000+ ms delays between paginated requests:
+```javascript
+// Add delay between paginated API calls
+if (hasMore) {
+  await new Promise(resolve => setTimeout(resolve, 1200));
+}
+```
+
 ### Adding a New Part List Feature
 
 1. Add backend endpoint to app.py (use Rebrickable's `/users/{token}/partlists/...` routes as reference)
-2. Fetch color list if needed: `GET /api/colors` is already cached across requests
-3. Update index.html UI and JavaScript handlers
-4. Test on iOS Safari (rendering quirks with form inputs, async operations)
+2. **Use `rebrickable_get()` for all Rebrickable API calls** to respect rate limits
+3. Fetch color list if needed: `GET /api/colors` is already cached across requests
+4. Update index.html UI and JavaScript handlers
+5. Test on iOS Safari (rendering quirks with form inputs, async operations)
 
 ### Debugging Color Detection
 
