@@ -823,7 +823,7 @@
     /* Sets search */
     .sets-search-card {
       background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 14px; position: relative;
+      border-radius: var(--radius); padding: 14px;
     }
   </style>
 </head>
@@ -975,8 +975,8 @@
         onkeydown="if(event.key==='Enter')searchSetsFromTop()">
       <button onclick="searchSetsFromTop()" class="action-btn">Find</button>
     </div>
-    <div id="setSearchResults" style="position:absolute;top:100%;left:0;right:0;background:var(--surface2);border:1px solid var(--border-bright);border-radius:var(--radius);max-height:300px;overflow-y:auto;z-index:100;display:none;margin-top:4px;box-shadow:0 8px 24px rgba(0,0,0,0.5);"></div>
   </div>
+  <div id="setSearchResults" style="background:var(--surface2);border:1px solid var(--border-bright);border-radius:var(--radius);overflow-y:auto;display:none;box-shadow:0 8px 24px rgba(0,0,0,0.5);"></div>
 </div>
 
 <!-- Screen: Set Details -->
