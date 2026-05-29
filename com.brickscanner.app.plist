@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Brick Scanner app (launchd LaunchAgent).
+
+  Keeps the Flask server running on port 5001 so the app is always reachable
+  over Tailscale whenever this Mac is logged in. RunAtLoad starts it at login;
+  KeepAlive restarts it if it crashes or exits.
+
+  Install:
+    cp com.brickscanner.app.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.brickscanner.app.plist
+
+  Stop temporarily / restart:
+    launchctl stop  com.brickscanner.app
+    launchctl start com.brickscanner.app
+
+  Uninstall:
+    launchctl unload ~/Library/LaunchAgents/com.brickscanner.app.plist
+
+  Notes:
+   - LaunchAgents start at *login* (not pre-login boot). For true unattended
+     uptime, enable automatic login, or keep the Mac logged in and awake.
+   - This and start.sh both bind port 5001 — don't run both. To use start.sh
+     in the foreground, `launchctl stop com.brickscanner.app` first.
+   - app.py calls load_dotenv(), so WorkingDirectory must be the project dir
+     for the API credentials in .env to load. Logs: app.log.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.brickscanner.app</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/python3</string>
+        <string>app.py</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/jef/Claude/Brick Scanner</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/jef/Claude/Brick Scanner/app.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/jef/Claude/Brick Scanner/app.log</string>
+</dict>
+</plist>

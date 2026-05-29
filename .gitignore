@@ -16,3 +16,6 @@ templates/index.html.bak
 .catalog_changes.json
 catalog_refresh.log
 catalog_refresh.launchd.log
+
+# Flask app log (launchd autostart agent, local dev only)
+app.log
