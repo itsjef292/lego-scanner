@@ -70,13 +70,21 @@ Backend: `GET /api/catalog/status` (freshness + `can_refresh` + `last_changes`) 
 `POST /api/catalog/refresh` (runs `refresh_catalog.run()` in a daemon thread; the
 frontend polls status every 2s).
 
-**Change tracking:** Each rebuild diffs the old vs new catalog on `part_num`/`fig_num`/
-`set_num` (`refresh_catalog._diff_catalog`, run before the atomic swap while both DBs
-exist) and writes added/removed items per category to `.catalog_changes.json` (capped at
-`CHANGES_CAP`=500/category). The scan-screen footer renders this as a collapsible list
-(`#catalogChanges` / `_renderChanges()`): a summary line ("May 28 update — +2/−1 sets, …")
-that expands to grouped SETS/FIGS/PARTS with green `+`/red `−` rows. Hidden when there are
-no additions/removals. The footer is hidden where `can_refresh` is false —
+**Change tracking:** Each rebuild diffs the old vs new catalog (`refresh_catalog._diff_catalog`,
+run before the atomic swap while both DBs exist) and writes the result to
+`.catalog_changes.json` (capped at `CHANGES_CAP`=500/category). It records, per category
+(`part_num`/`fig_num`/`set_num`): **added**, **removed**, and **renamed** (name changed for
+the same number); plus **set-content changes** — sets whose inventory composition changed,
+detected via a cheap per-set signature `(distinct part/color lines, total qty)` from
+`inventories`⋈`inventory_parts` (`_set_signatures`). This is what Rebrickable's frequent
+`inventories`-table updates actually represent. The record **always includes the list of
+updated `tables`**, and is written on every refresh that had a prior catalog to diff — even
+when no items/contents changed — so the UI can still show *which* tables updated (e.g.
+`inventories`, `themes`). The scan-screen footer renders this as a collapsible list
+(`#catalogChanges` / `_renderChanges()`): a summary line ("May 29 update — +2/−1/~3 sets,
+5 sets changed") that expands to an "Updated tables" line plus grouped SETS/FIGS/PARTS with
+green `+` / red `−` / blue `~` rows and a "Set contents changed (N)" group. Hidden only when
+there are no changes *and* no table info. The footer is hidden where `can_refresh` is false —
 i.e. on Render (`IS_RENDER`, detected via the `RENDER` env var), where refresh is
 disabled (returns 403) since the filesystem is ephemeral.
 

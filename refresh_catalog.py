@@ -87,8 +87,32 @@ def _catalog_index(db_path):
         conn.close()
 
 
+def _set_signatures(db_path):
+    """Return {set_num: (line_count, total_qty)} summarising each set's inventory.
+
+    Used to detect sets whose part contents changed (what Rebrickable's
+    ``inventories`` table updates actually represent day to day). Cheap proxy:
+    a set's signature changes if the number of distinct part/color lines or the
+    total piece count changes.
+    """
+    conn = sqlite3.connect(db_path)
+    try:
+        rows = conn.execute(
+            """
+            SELECT i.set_num, COUNT(*) AS lines, COALESCE(SUM(ip.quantity), 0) AS qty
+            FROM inventories i
+            JOIN inventory_parts ip ON ip.inventory_id = i.id
+            GROUP BY i.set_num
+            """
+        ).fetchall()
+        return {r[0]: (r[1], r[2]) for r in rows}
+    finally:
+        conn.close()
+
+
 def _diff_catalog(old_db, new_db):
-    """Compare two catalog DBs and return what was added/removed per category.
+    """Compare two catalog DBs: items added/removed/renamed per category, plus
+    sets whose inventory (part contents) changed.
 
     Returns a dict with a per-category summary (counts) plus capped item lists,
     or None on failure / when there are no differences.
@@ -104,13 +128,35 @@ def _diff_catalog(old_db, new_db):
         o, n = old[kind], new[kind]
         added = sorted((k for k in n if k not in o))
         removed = sorted((k for k in o if k not in n))
-        total += len(added) + len(removed)
-        result["summary"][kind] = {"added": len(added), "removed": len(removed)}
+        renamed = sorted((k for k in n if k in o and o[k] != n[k]))
+        total += len(added) + len(removed) + len(renamed)
+        result["summary"][kind] = {
+            "added": len(added), "removed": len(removed), "renamed": len(renamed),
+        }
         result[kind] = {
             "added": [{"num": k, "name": n[k]} for k in added[:CHANGES_CAP]],
             "removed": [{"num": k, "name": o[k]} for k in removed[:CHANGES_CAP]],
-            "truncated": len(added) > CHANGES_CAP or len(removed) > CHANGES_CAP,
+            "renamed": [{"num": k, "name": n[k], "old_name": o[k]} for k in renamed[:CHANGES_CAP]],
+            "truncated": (len(added) > CHANGES_CAP or len(removed) > CHANGES_CAP
+                          or len(renamed) > CHANGES_CAP),
         }
+
+    # Sets whose inventory (part composition) changed — the substance of most
+    # daily "inventories" table updates. Best-effort: skip on any error.
+    try:
+        old_sig = _set_signatures(old_db)
+        new_sig = _set_signatures(new_db)
+        changed_sets = sorted(s for s in new_sig if s in old_sig and new_sig[s] != old_sig[s])
+        names = new["sets"]
+        result["sets_content"] = {
+            "count": len(changed_sets),
+            "changed": [{"num": s, "name": names.get(s, "")} for s in changed_sets[:CHANGES_CAP]],
+            "truncated": len(changed_sets) > CHANGES_CAP,
+        }
+        total += len(changed_sets)
+    except Exception:
+        pass
+
     return result if total else None
 
 
@@ -164,12 +210,27 @@ def run(force=False):
         os.replace(tmp, DB)
         log(f"swapped in new brick_parts.db ({os.path.getsize(DB)/1_000_000:.1f} MB)")
 
-        if changes:
-            s = changes["summary"]
-            log("changes: " + ", ".join(
-                f"{k} +{s[k]['added']}/-{s[k]['removed']}" for k in ("sets", "minifigs", "parts")))
+        # Record what changed for the scan-screen footer. Always write when we
+        # had a prior catalog to diff — even with no item/content changes, so the
+        # UI can still show *which tables* updated (e.g. inventories, themes). On
+        # the very first build there's no prior DB, so there's nothing to diff.
+        if not db_missing:
+            record = changes or {
+                "timestamp": datetime.datetime.now().isoformat(timespec="seconds"),
+                "summary": {},
+            }
+            record["tables"] = changed
             with open(CHANGES, "w") as f:
-                json.dump(changes, f)
+                json.dump(record, f)
+            if changes:
+                s = changes["summary"]
+                sc = changes.get("sets_content", {}).get("count", 0)
+                log("changes: " + ", ".join(
+                    f"{k} +{s[k]['added']}/-{s[k]['removed']}/~{s[k]['renamed']}"
+                    for k in ("sets", "minifigs", "parts")) + f"; set-contents ~{sc}")
+            else:
+                log("no item/content changes; tables updated: "
+                    + (", ".join(changed) or "(forced rebuild)"))
     except SystemExit as e:           # download_csvs.main calls sys.exit on failure
         log(f"ERROR: download/build failed (exit {e.code})")
         return {"ok": False, "changed": False,

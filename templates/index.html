@@ -905,9 +905,11 @@
     .cc-sign { font-family: var(--font-mono); width: 12px; flex-shrink: 0; }
     .cc-sign.add { color: #22C55E; }
     .cc-sign.rem { color: #ff6b6b; }
+    .cc-sign.ren { color: var(--yellow); }
     .cc-num { font-family: var(--font-mono); color: var(--yellow); flex-shrink: 0; }
     .cc-name { color: var(--text); min-width: 0; word-break: break-word; }
     .cc-more { font-size: 11px; color: var(--muted); font-style: italic; padding-top: 3px; }
+    .cc-tables { font-family: var(--font-mono); font-size: 12px; color: var(--text); word-break: break-word; }
     .local-result:hover { background: var(--surface3); }
     .local-result img {
       width: 50px; height: 50px; object-fit: contain;
@@ -2043,19 +2045,30 @@
 
   function _renderChanges(changes) {
     const wrap = document.getElementById('catalogChanges');
-    if (!changes || !changes.summary) { wrap.style.display = 'none'; return; }
+    if (!changes) { wrap.style.display = 'none'; return; }
 
+    const summary = changes.summary || {};
+    const content = changes.sets_content || {};
+    const tables = changes.tables || [];
+
+    // Build the one-line summary (added/removed/renamed per kind + set contents).
     const summaryBits = [];
-    let total = 0;
+    let itemTotal = 0;
     _ccKinds.forEach(([k, label]) => {
-      const s = changes.summary[k] || { added: 0, removed: 0 };
-      total += s.added + s.removed;
+      const s = summary[k] || {};
+      const a = s.added || 0, r = s.removed || 0, rn = s.renamed || 0;
+      itemTotal += a + r + rn;
       const bits = [];
-      if (s.added) bits.push('+' + s.added);
-      if (s.removed) bits.push('−' + s.removed);
+      if (a) bits.push('+' + a);
+      if (r) bits.push('−' + r);
+      if (rn) bits.push('~' + rn);
       if (bits.length) summaryBits.push(bits.join('/') + ' ' + label);
     });
-    if (!total) { wrap.style.display = 'none'; return; }
+    const contentCount = content.count || 0;
+    if (contentCount) summaryBits.push(contentCount + ' set' + (contentCount === 1 ? '' : 's') + ' changed');
+
+    // Show the panel if there are item/content changes OR at least table info.
+    if (!itemTotal && !contentCount && !tables.length) { wrap.style.display = 'none'; return; }
     wrap.style.display = 'block';
 
     let prefix = '';
@@ -2063,7 +2076,10 @@
       const d = new Date(changes.timestamp);
       if (!isNaN(d)) prefix = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' update — ';
     }
-    document.getElementById('catalogChangesSummary').textContent = prefix + summaryBits.join(', ');
+    let summaryText;
+    if (summaryBits.length) summaryText = prefix + summaryBits.join(', ');
+    else summaryText = prefix + (tables.length ? tables.join(', ') + ' updated' : 'rebuilt — no changes');
+    document.getElementById('catalogChangesSummary').textContent = summaryText;
 
     const row = (sign, cls, it) =>
       `<div class="cc-item"><span class="cc-sign ${cls}">${sign}</span>` +
@@ -2071,19 +2087,35 @@
       `<span class="cc-name">${escapeHtml(it.name || '')}</span></div>`;
 
     let html = '';
+    if (tables.length) {
+      html += '<div class="cc-group"><div class="cc-group-head">Updated tables</div>' +
+        '<div class="cc-tables">' + escapeHtml(tables.join(', ')) + '</div></div>';
+    }
     _ccKinds.forEach(([k, label]) => {
       const grp = changes[k];
       if (!grp) return;
-      const added = grp.added || [], removed = grp.removed || [];
-      if (!added.length && !removed.length) return;
-      const s = changes.summary[k] || { added: 0, removed: 0 };
+      const added = grp.added || [], removed = grp.removed || [], renamed = grp.renamed || [];
+      if (!added.length && !removed.length && !renamed.length) return;
+      const s = summary[k] || {};
+      const head = [];
+      if (s.added) head.push('+' + s.added);
+      if (s.removed) head.push('−' + s.removed);
+      if (s.renamed) head.push('~' + s.renamed);
       html += '<div class="cc-group"><div class="cc-group-head">' +
-        escapeHtml(label.toUpperCase()) + ` (+${s.added}` + (s.removed ? ` / −${s.removed}` : '') + ')</div>';
+        escapeHtml(label.toUpperCase()) + ' (' + head.join(' / ') + ')</div>';
       added.forEach(it => { html += row('+', 'add', it); });
       removed.forEach(it => { html += row('−', 'rem', it); });
+      renamed.forEach(it => { html += row('~', 'ren', it); });
       if (grp.truncated) html += '<div class="cc-more">…list truncated</div>';
       html += '</div>';
     });
+    if (content.changed && content.changed.length) {
+      html += '<div class="cc-group"><div class="cc-group-head">Set contents changed (' +
+        (content.count || content.changed.length) + ')</div>';
+      content.changed.forEach(it => { html += row('~', 'ren', it); });
+      if (content.truncated) html += '<div class="cc-more">…list truncated</div>';
+      html += '</div>';
+    }
     document.getElementById('catalogChangesBody').innerHTML = html;
   }
 
