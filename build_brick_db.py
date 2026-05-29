@@ -19,6 +19,14 @@ import sqlite3
 import sys
 import time
 
+# Load .env so a local/nightly build can read REBRICKABLE_API_KEY for the
+# BrickLink-alias harvest. On Render the key comes from the environment instead.
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    pass
+
 # Allow very large CSV fields (inventory_parts img_url URLs are long)
 csv.field_size_limit(10 * 1024 * 1024)
 
@@ -92,6 +100,15 @@ CREATE TABLE inventory_minifigs (inventory_id INTEGER, fig_num TEXT, quantity IN
 
 DROP TABLE IF EXISTS part_colors;
 CREATE TABLE part_colors (part_num TEXT, color_id INTEGER, img_url TEXT, PRIMARY KEY (part_num, color_id));
+
+-- BrickLink part id -> Rebrickable part_num, harvested from Rebrickable's
+-- external_ids. A BrickLink id can map to several Rebrickable molds (e.g. BL
+-- 3068 -> 3068a/3068b); all rows are kept and resolved at query time by picking
+-- the most-common part. Populated by harvest_bl_aliases(); may be empty if the
+-- API key is absent or the harvest fails (the app then falls back to its
+-- identity/mold heuristic + live API).
+DROP TABLE IF EXISTS bl_aliases;
+CREATE TABLE bl_aliases (bl_id TEXT, part_num TEXT);
 """
 
 
@@ -118,6 +135,54 @@ def load_table(conn, src_dir, table, csv_file, cols):
         conn.executemany(sql, batch)
         n += len(batch)
     conn.commit()
+    return n
+
+
+def harvest_bl_aliases(conn):
+    """Populate bl_aliases (bricklink_id -> rebrickable part_num) from Rebrickable's
+    parts list endpoint, which includes external_ids inline (~63 throttled pages,
+    ~1-2 min). Graceful: with no REBRICKABLE_API_KEY, no `requests`, or any error,
+    it leaves the table empty and returns 0 — the build still succeeds and the app
+    falls back to its identity/mold heuristic + live API.
+    """
+    api_key = os.environ.get("REBRICKABLE_API_KEY")
+    if not api_key:
+        print("  ! bl_aliases: REBRICKABLE_API_KEY not set — skipping (heuristic fallback remains)")
+        return 0
+    try:
+        import requests
+    except ImportError:
+        print("  ! bl_aliases: 'requests' unavailable — skipping")
+        return 0
+
+    base = "https://rebrickable.com/api/v3/lego/parts/"
+    n, page = 0, 1
+    try:
+        while True:
+            r = requests.get(base, params={"key": api_key, "page_size": 1000, "page": page}, timeout=30)
+            if r.status_code in (429, 503):       # rate limited / unavailable: back off
+                time.sleep(2)
+                continue
+            r.raise_for_status()
+            data = r.json()
+            batch = []
+            for p in data.get("results", []):
+                pn = p.get("part_num")
+                for bl in ((p.get("external_ids") or {}).get("BrickLink") or []):
+                    if bl and pn:
+                        batch.append((bl, pn))
+            if batch:
+                conn.executemany("INSERT INTO bl_aliases (bl_id, part_num) VALUES (?,?)", batch)
+                n += len(batch)
+            if not data.get("next"):
+                break
+            page += 1
+            time.sleep(1)                          # ~1 req/sec to respect 60/min
+        conn.commit()
+        print(f"  harvested bl_aliases   {n:>9,} mappings ({page} pages)")
+    except Exception as e:
+        print(f"  ! bl_aliases harvest failed ({e}) — continuing with empty table")
+        conn.rollback()
     return n
 
 
@@ -151,6 +216,12 @@ def build(src_dir, db_path):
         CREATE INDEX idx_inv_minifigs_fig ON inventory_minifigs(fig_num);
         CREATE INDEX idx_inventories_set ON inventories(set_num);
     """)
+    conn.commit()
+
+    # Harvest the BrickLink->Rebrickable part-id mapping (Rebrickable API).
+    print("Harvesting BrickLink aliases…")
+    harvest_bl_aliases(conn)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_bl_aliases ON bl_aliases(bl_id)")
     conn.commit()
 
     # Derive distinct part/color combos (+ a representative image per combo)

@@ -84,7 +84,32 @@ def _local_resolve_part(bl_id):
         if row:
             return dict(row)
 
-        # 2. Mold-variant fallback. BrickLink often uses a bare number (e.g. 3068)
+        # 2. Authoritative BrickLink→Rebrickable alias, harvested from Rebrickable's
+        #    external_ids (bl_aliases table). A BrickLink id can map to several
+        #    Rebrickable molds (e.g. 3068 → 3068a/3068b) — pick the one in the most
+        #    set inventories. Wrapped in try/except so a DB built before this table
+        #    existed degrades to the heuristic below.
+        try:
+            row = conn.execute(
+                """
+                SELECT p.part_num, p.name, p.img_url,
+                       (SELECT COUNT(*) FROM inventory_parts ip
+                        WHERE ip.part_num = p.part_num) AS freq
+                FROM bl_aliases a
+                JOIN parts p ON p.part_num = a.part_num
+                WHERE a.bl_id = ?
+                ORDER BY freq DESC, p.part_num
+                LIMIT 1
+                """,
+                (bl_id,),
+            ).fetchone()
+            if row:
+                return {"part_num": row["part_num"], "name": row["name"],
+                        "img_url": row["img_url"]}
+        except sqlite3.OperationalError:
+            pass  # bl_aliases table absent (older DB) — fall through to heuristic
+
+        # 3. Mold-variant fallback. BrickLink often uses a bare number (e.g. 3068)
         #    where Rebrickable splits molds with a single-letter suffix
         #    (3068a "without groove" / 3068b "with groove"). Match part_num =
         #    bl_id + exactly one lowercase letter (GLOB has no trailing *, so
