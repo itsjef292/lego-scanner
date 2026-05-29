@@ -802,6 +802,11 @@
     .voice-cancel { background: var(--surface3); color: var(--muted); }
     .voice-go { background: var(--yellow); color: #fff; border-color: var(--yellow); }
     .voice-error { font-size: 13px; color: #FCA5A5; text-align: center; }
+    .bl-match-note {
+      padding: 9px 12px; font-size: 12px; line-height: 1.5; color: var(--muted);
+      background: var(--surface3); border-bottom: 1px solid var(--border);
+    }
+    .bl-match-note b { color: var(--yellow); font-family: var(--font-mono); }
 
     /* ── Shared inline section cards ── */
     .section-card {
@@ -1950,7 +1955,7 @@
         err.style.display = 'block';
         return;
       }
-      renderLocalResults(resultsId, data.results || [], kind, data.source);
+      renderLocalResults(resultsId, data.results || [], kind, data.source, data.bl_match);
     } catch (e) {
       res.style.display = 'none';
       err.textContent = 'Network error. Please try again.';
@@ -1975,16 +1980,22 @@
     </div>`;
   }
 
-  function renderLocalResults(containerId, results, kind, source) {
+  function renderLocalResults(containerId, results, kind, source, blMatch) {
     const el = document.getElementById(containerId);
     const fallbackImg = kind === 'minifig' ? '/static/minifig.png' : '/static/brick.svg';
     const badge = sourceBadge(source, results.length);
+    // When a BrickLink minifig id (e.g. sw0131) was translated to a name, explain
+    // why named results are showing and that the user should pick the right one.
+    const blNote = blMatch ? `<div class="bl-match-note">BrickLink <b>${escapeHtml(blMatch.id)}</b> = “${escapeHtml(blMatch.name)}”.<br>Rebrickable has no BrickLink minifig numbers — pick the matching figure below.</div>` : '';
     if (!results.length) {
-      el.innerHTML = badge + '<div style="padding:12px;color:var(--muted);font-size:13px;">No matches found</div>';
+      const empty = blMatch
+        ? `<div style="padding:12px;color:var(--muted);font-size:13px;">No Rebrickable match found for BrickLink ${escapeHtml(blMatch.id)} (“${escapeHtml(blMatch.name)}”).</div>`
+        : '<div style="padding:12px;color:var(--muted);font-size:13px;">No matches found</div>';
+      el.innerHTML = badge + blNote + empty;
       el.style.display = 'block';
       return;
     }
-    el.innerHTML = badge + results.map((r, i) => {
+    el.innerHTML = badge + blNote + results.map((r, i) => {
       const num = escapeHtml(kind === 'minifig' ? (r.fig_num || '') : (r.part_num || ''));
       const name = escapeHtml(r.name || '');
       const img = r.img_url ? escapeHtml(r.img_url) : fallbackImg;

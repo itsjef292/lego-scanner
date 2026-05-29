@@ -208,6 +208,56 @@ def _local_resolve_minifig(name):
         conn.close()
 
 
+def _bricklink_minifig_name(bl_id):
+    """Look up a BrickLink minifig id (e.g. sw0131) → its catalog name via the
+    BrickLink API. Rebrickable exposes no BrickLink minifig ids, so the name is
+    the only bridge to a Rebrickable fig. Returns the name or None on any failure.
+    """
+    if not (BL_CONSUMER_KEY and BL_TOKEN):
+        return None
+    try:
+        auth = OAuth1(BL_CONSUMER_KEY, BL_CONSUMER_SECRET, BL_TOKEN, BL_TOKEN_SECRET)
+        resp = requests.get(f"{BL_BASE}/items/MINIFIG/{bl_id}", auth=auth, timeout=8)
+        if resp.status_code == 200:
+            return ((resp.json() or {}).get("data") or {}).get("name") or None
+    except Exception:
+        pass
+    return None
+
+
+def _local_minifig_search_by_name(name, limit=20):
+    """Find Rebrickable minifigs whose names best overlap a (BrickLink) name.
+    Used to surface candidates for a BrickLink minifig id; returns a ranked list
+    of row dicts (best word-overlap first). Names diverge between catalogs, so
+    this is intentionally a candidate list for the user to choose from, not a
+    single auto-pick.
+    """
+    conn = local_db()
+    if conn is None:
+        return []
+    try:
+        toks = re.findall(r'[a-z0-9]+', name.lower())
+        keys = sorted({w for w in toks if len(w) >= 4}, key=len, reverse=True) \
+            or sorted({w for w in toks if len(w) >= 3}, key=len, reverse=True)
+        if not keys:
+            return []
+        keys = keys[:2]
+        where = " OR ".join("name LIKE ?" for _ in keys)
+        rows = conn.execute(
+            f"SELECT fig_num, name, num_parts, img_url FROM minifigs WHERE {where} LIMIT 300",
+            [f"%{k}%" for k in keys],
+        ).fetchall()
+        full = set(toks)
+        ranked = sorted(
+            rows,
+            key=lambda r: len(full & set(re.findall(r'\w+', r["name"].lower()))),
+            reverse=True,
+        )
+        return [dict(r) for r in ranked[:limit]]
+    finally:
+        conn.close()
+
+
 def _local_part_colors(part_num):
     """Available colors for a part (+ num_sets), from the local catalog.
     Returns a list shaped like Rebrickable's /parts/<n>/colors/ results, or None.
@@ -1315,6 +1365,7 @@ def local_search():
 
     like = f"%{query}%"
     prefix = f"{query}%"
+    bl_match = None  # set when a BrickLink minifig id was translated to a name
     try:
         if kind == "minifigs":
             rows = conn.execute(
@@ -1338,6 +1389,22 @@ def local_search():
                 "num_parts": r["num_parts"],
                 "img_url": r["img_url"],
             } for r in rows]
+
+            # BrickLink minifig id (e.g. sw0131) with no local hit: Rebrickable has
+            # no BrickLink minifig ids, so translate the id → name via BrickLink and
+            # surface the best-matching Rebrickable figs as candidates to choose from.
+            if not results and re.match(r'^[a-z]{1,4}\d{2,5}[a-z]?$', query.lower()):
+                bl_name = _bricklink_minifig_name(query)
+                if bl_name:
+                    bl_match = {"id": query, "name": bl_name}
+                    rows2 = _local_minifig_search_by_name(bl_name, limit)
+                    results = [{
+                        "type": "minifig",
+                        "fig_num": r["fig_num"],
+                        "name": r["name"],
+                        "num_parts": r["num_parts"],
+                        "img_url": r["img_url"],
+                    } for r in rows2]
 
         elif kind == "sets":
             rows = conn.execute(
@@ -1389,7 +1456,10 @@ def local_search():
                 "category": r["category"],
             } for r in rows]
 
-        return jsonify({"results": results, "count": len(results), "source": "offline"})
+        resp = {"results": results, "count": len(results), "source": "offline"}
+        if bl_match:
+            resp["bl_match"] = bl_match
+        return jsonify(resp)
     except Exception as e:
         print(f"Error in local_search: {e}")
         return jsonify({"error": str(e), "results": []}), 500
