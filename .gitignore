@@ -8,7 +8,7 @@ __pycache__/
 # ~330MB total). Rebuild locally with: python3 build_brick_db.py
 Brick Parts/
 brick_parts.db
-brick_parts.db.new
+brick_parts.db.new*
 templates/index.html.bak
 
 # Daily catalog-refresh runtime artifacts (local dev only)
