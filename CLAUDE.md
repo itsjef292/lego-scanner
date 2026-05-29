@@ -335,10 +335,14 @@ Single-page app with 5 screens:
 - Daily catalog-refresh job moved **04:30 → 07:30 ET** (just after Rebrickable's
   ~07:12 ET catalog update); launchd uses local time so it tracks DST.
 
-**Set-Details Image Preview (May 2026):**
+**Image Preview — set details + identify screen (May 2026):**
 - In the Sets tab, tapping a part or minifig thumbnail in a set's Parts/Minifigures
   list opens the full-screen image modal. Reused `openImageModal` with an optional
   `linkType` arg so minifigs link to BrickLink `M=` catalog pages (parts keep `P=`).
+- On the **identify screen**, the identified item's catalog image (`#catalogImg`) is
+  tappable too (set in `populateCardInfo`) — opens the same modal, reading the live
+  src so color-specific part images enlarge, with the BrickLink link using `M=`/`P=`
+  by item type.
 
 **Offline Catalog Search (May 2026):**
 - New local search over the full Rebrickable catalog (~62k parts, ~16k minifigs, ~26k sets) backed by a local SQLite DB — instant and not subject to the 60 req/min Rebrickable rate limit

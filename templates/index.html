@@ -2503,7 +2503,12 @@
     renderInventoryStatus(0);
 
     document.getElementById('partName').textContent = decodeHtmlEntities(item.name || item.id);
-    document.getElementById('catalogImg').src = item.img_url || '';
+    const catImg = document.getElementById('catalogImg');
+    catImg.src = item.img_url || '';
+    // Tap the catalog image to view it large (BrickLink link uses M= for minifigs,
+    // P= for parts). Reads the live src so color-specific part images enlarge too.
+    catImg.style.cursor = 'pointer';
+    catImg.onclick = () => { if (catImg.src) openImageModal(catImg.src, blId || '', isMinifig ? 'M' : 'P'); };
 
     if (isMinifig) {
       document.getElementById('rbValue').innerHTML =
