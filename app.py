@@ -759,6 +759,20 @@ def identify():
                 item["candidate_colors"] = rb_colors
             items.append(item)
 
+        # Brickognize predicts the scanned object's colour but only attaches the
+        # candidate_colors to some part guesses (e.g. the 2x2 tile, not a mis-ranked
+        # 6x6). The object's colour is the same whichever part it guesses, so share
+        # the first non-empty colour shortlist with every item that lacks one.
+        # Otherwise the colour matcher falls back to that part's full palette and can
+        # pick a wrong nearby colour the object isn't (e.g. azure → Dark Turquoise
+        # when the mis-ranked part doesn't even come in Medium Azure).
+        shared_colors = next((it["candidate_colors"] for it in items
+                              if it.get("candidate_colors")), None)
+        if shared_colors:
+            for it in items:
+                if not it.get("candidate_colors"):
+                    it["candidate_colors"] = shared_colors
+
         data = {
             "listing_id": idata.get("id", ""),
             "bounding_box": bounding_box,
