@@ -36,7 +36,15 @@ echo "  ✅ Running!"
 echo ""
 echo "  Local:     http://$(ipconfig getifaddr en0):5001"
 if [ -n "$TS_NAME" ]; then
-  echo "  Tailscale: http://${TS_NAME}:5001"
+  # HTTPS via `tailscale serve` (port 443 → :5001). The HTTPS URL is a secure
+  # context, so the browser mic ("Add by voice") works on the phone; the plain
+  # :5001 URL still works too but has no mic.
+  if "$TS" serve status 2>/dev/null | grep -q "5001"; then
+    echo "  Tailscale: https://${TS_NAME}  (HTTPS — enables the voice mic)"
+    echo "             http://${TS_NAME}:5001  (no mic)"
+  else
+    echo "  Tailscale: http://${TS_NAME}:5001"
+  fi
 else
   echo "  Tailscale: (not detected — is Tailscale running & signed in?)"
 fi

@@ -556,9 +556,16 @@ the same tailnet (`itsjeff292@`). The app uses a native file input (not
 `getUserMedia`), so plain HTTP is fine — no HTTPS needed.
 
 - **Reach it from the phone:** install the Tailscale app, sign into the same
-  account, then open `http://jefs-macbook-pro.<tailnet>.ts.net:5001` (MagicDNS
-  name — IP-independent) or the raw tailnet IP. `start.sh` auto-detects and
-  prints the current Tailscale URL.
+  account, then open `https://jefs-macbook-pro.<tailnet>.ts.net` (HTTPS via
+  Tailscale Serve — see below) or `http://…:5001` (raw, no mic). `start.sh`
+  auto-detects and prints both.
+- **HTTPS via Tailscale Serve:** `tailscale serve --bg 5001` proxies the tailnet
+  host's :443 → local :5001 with a real (Let's Encrypt) cert, giving
+  `https://<host>.<tailnet>.ts.net`. This is a **secure context**, so the browser
+  mic ("Add by voice") works on the phone (plain HTTP isn't a secure context).
+  Persists across reboots; tailnet-only (not public). Requires HTTPS certs enabled
+  once in the tailnet admin console (Settings → **HTTPS Certificates → Enable**).
+  Disable with `tailscale serve --https=443 off`; inspect with `tailscale serve status`.
 - **Tailscale install (macOS):** `brew install --cask tailscale` (the GUI app
   auto-starts at login and stays connected). The CLI lives at
   `/Applications/Tailscale.app/Contents/MacOS/Tailscale` (`… status` / `… ip -4`).
