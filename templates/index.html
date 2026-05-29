@@ -2267,7 +2267,7 @@
     return Math.min(d, 360 - d);
   }
 
-  function findClosestLegoColor(r, g, b, candidates, darkFraction = 0, preferred = null) {
+  function findClosestLegoColor(r, g, b, candidates, darkFraction = 0, preferred = null, preferredIds = null, trustShortlist = null) {
     const pool = candidates?.length ? candidates : colors;
     const hsv = rgbToHsv(r, g, b);
     const isChromatic = hsv.s > 0.2 && hsv.v > 0.2;
@@ -2307,6 +2307,11 @@
       // strongly disagrees (> 30 pts). Prevents bright-reference mismatches
       // (e.g. Sand Blue avg=124 vs photo avg=204) from picking a lighter colour.
       if (preferred && c.id === preferred.id) score -= 30;
+      // Members of Brickognize's predicted shortlist get a moderate prior bonus:
+      // its ML colour prediction is a reliable signal, so a shortlisted colour
+      // wins over a slightly-closer non-shortlisted one — but a much-closer real
+      // colour the shortlist omitted (e.g. Dark Azure) can still win.
+      else if (preferredIds && preferredIds.has(c.id)) score -= 15;
 
       if (score < bestScore) { bestScore = score; best = c; }
     }
@@ -2315,7 +2320,7 @@
     // transparent (background shows through). Prefer a Trans- variant.
     // Skip entirely when using server-vetted candidates — Brickognize already
     // knows if the part is transparent; don't second-guess it.
-    const usingServerCandidates = candidates?.length > 0;
+    const usingServerCandidates = trustShortlist != null ? trustShortlist : (candidates?.length > 0);
     if (!usingServerCandidates && best?.rgb && !best.name.startsWith('Trans-')) {
       const mr = parseInt(best.rgb.slice(0,2),16);
       const mg = parseInt(best.rgb.slice(2,4),16);
@@ -2699,47 +2704,39 @@
       document.getElementById('debugLabel').style.display = 'block';
     }
 
-    // Use Brickognize's candidate colors as the shortlist, then let pixel
-    // sampling pick the best match among them. This beats blind [0] selection
-    // when Brickognize's confidence ordering is wrong (e.g. Reddish Brown vs Dark Red).
-    const serverColors = items[0].candidate_colors;
+    // Colour selection: match the sampled pixel against the part's FULL palette
+    // (every colour it comes in), using Brickognize's predicted colours as a
+    // prior — not a hard restriction. Brickognize's shortlist sometimes omits
+    // the real colour (e.g. it offered Blue/Medium Blue but not Dark Azure for an
+    // azure tile), so restricting to it produced wrong picks; matching the full
+    // palette lets the closest real LEGO colour win, while shortlist members get
+    // a bonus so the ML prediction still breaks near-ties.
+    const serverColors = items[0].candidate_colors || [];
     const colorByName = colors.length
       ? Object.fromEntries(colors.map(c => [c.name.toLowerCase(), c]))
       : {};
     const colorMap = colors.length ? Object.fromEntries(colors.map(c => [c.id, c])) : {};
 
-    if (serverColors?.length && colors.length) {
-      // Map Brickognize candidates → Rebrickable color objects (by name)
-      const serverCandidates = serverColors
-        .map(sc => colorByName[(sc.name || '').toLowerCase()])
-        .filter(Boolean);
+    // Brickognize shortlist → set of Rebrickable colour ids (resolved by name).
+    const shortlistIds = new Set(
+      serverColors.map(sc => colorByName[(sc.name || '').toLowerCase()]?.id).filter(v => v != null)
+    );
 
-      if (serverCandidates.length === 1) {
-        const c = serverCandidates[0];
-        applyColor(c.id, c.name, c.rgb);
-        return;
-      } else if (serverCandidates.length > 1 && detectedRgb) {
-        const avgBrightness = (detectedRgb.r + detectedRgb.g + detectedRgb.b) / 3;
-        if (avgBrightness >= 70) {
-          const closest = findClosestLegoColor(
-            detectedRgb.r, detectedRgb.g, detectedRgb.b,
-            serverCandidates, detectedRgb.darkFraction || 0,
-            serverCandidates[0]
-          );
-          if (closest) { applyColor(closest.id, closest.name, closest.rgb); return; }
-        }
-        const c = serverCandidates[0];
-        applyColor(c.id, c.name, c.rgb);
-        return;
-      }
-    }
+    // Pool = the part's full palette; fall back to the shortlist, then all colours.
+    let pool = partColors.map(pc => colorMap[pc.color_id]).filter(Boolean);
+    if (!pool.length) pool = serverColors.map(sc => colorByName[(sc.name || '').toLowerCase()]).filter(Boolean);
 
-    // Full client-side fallback (no server candidates)
     const avgBrightness = detectedRgb ? (detectedRgb.r + detectedRgb.g + detectedRgb.b) / 3 : 0;
-    if (detectedRgb && avgBrightness >= 70 && colors.length) {
-      const candidates = partColors.map(pc => colorMap[pc.color_id]).filter(Boolean);
-      const closest = findClosestLegoColor(detectedRgb.r, detectedRgb.g, detectedRgb.b, candidates, detectedRgb.darkFraction || 0);
+    if (detectedRgb && avgBrightness >= 70 && pool.length) {
+      const closest = findClosestLegoColor(
+        detectedRgb.r, detectedRgb.g, detectedRgb.b,
+        pool, detectedRgb.darkFraction || 0, null, shortlistIds, false
+      );
       if (closest) applyColor(closest.id, closest.name, closest.rgb);
+    } else if (serverColors.length) {
+      // Too dark to sample reliably — trust Brickognize's first predicted colour.
+      const first = colorByName[(serverColors[0].name || '').toLowerCase()];
+      if (first) applyColor(first.id, first.name, first.rgb);
     }
 
     // Alternatives
