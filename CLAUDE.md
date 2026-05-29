@@ -209,7 +209,8 @@ Flask server with 10+ endpoints:
 - `POST /api/minifiglists` — Create minifig list
 - `GET /api/minifig_sets/<set_num>` — Get sets containing a minifig
 - `POST /api/add_minifig` — Add minifig to list
-- `GET /api/minifig_price/<fig_id>` — Fetch BrickLink pricing (OAuth1)
+- `GET /api/minifig_price/<fig_id>` — BrickLink last-6-months sold price, Used + New (OAuth1; via `_bl_sold_price`) + theme category
+- `GET /api/set_price/<set_num>` — BrickLink last-6-months sold price for a set, Used + New (`_bl_sold_price("SET", …)`; bare set numbers default to `-1`)
 
 **Offline Catalog Search:**
 - `GET /api/local/search?q=&type=parts|minifigs|sets&limit=` — Search by name or catalog number. Prefers the local SQLite catalog (`brick_parts.db`, no Rebrickable quota); **falls back to the live Rebrickable API when the DB is absent** (e.g. production). Response includes `"source": "offline" | "api"` so the UI can badge the data source. **BrickLink minifig ids** (e.g. `sw0131`): Rebrickable exposes no BrickLink minifig ids, so when a minifig query matches a BrickLink-id pattern and has no local hit, the id is translated to a name via the BrickLink API (`_bricklink_minifig_name`) and the best-matching Rebrickable figs are returned as **candidates** (`_local_minifig_search_by_name`, ranked by word overlap) along with a `"bl_match": {id, name}` field — the user picks the right one (names diverge between catalogs, so it's deliberately not a single auto-pick).
@@ -272,6 +273,18 @@ Single-page app with 5 screens:
 ---
 
 ## Recent Changes
+
+**Sold price for sets + minifigs (May 2026):**
+- BrickLink **last-6-months sold price** (Used + New: avg, min–max range, # sales)
+  shown for minifigs (existing identify panel) and now **sets** (new panel on the
+  set-details screen). Uses BrickLink's `guide_type=sold` price guide.
+- Backend: shared `_bl_sold_price(item_type, item_no)` helper (both U/N); `GET
+  /api/set_price/<set_num>` (SET type; bare numbers default to `-1`, matching
+  BrickLink/Rebrickable set ids like `75300-1`). `minifig_price` refactored onto it.
+- Frontend: `_renderSoldPriceCards()` shared renderer; set-details fetches/render
+  into `#setPriceSection`/`#setPriceGrid`. (eBay was considered but its sold-data
+  API is approval-gated + 90-day only; BrickLink is LEGO-specific and already
+  integrated.)
 
 **Export to BrickLink Wanted List (May 2026):**
 - Lists screen → "🛒 Export to BrickLink Wanted List" builds the selected parts

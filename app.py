@@ -1309,11 +1309,33 @@ def add_minifig():
         return jsonify(resp.json()), resp.status_code
 
 
+def _bl_sold_price(item_type, item_no):
+    """BrickLink last-6-months SOLD price guide for an item, both Used and New.
+    item_type: MINIFIG | SET | PART. Returns {"U": {...}, "N": {...}} where each
+    value is BrickLink's price 'data' (avg_price/min_price/max_price/unit_quantity
+    /qty_avg_price). Empty/partial if BrickLink is unavailable (e.g. on cloud)."""
+    out = {}
+    if not (BL_CONSUMER_KEY and BL_TOKEN):
+        return out
+    auth = OAuth1(BL_CONSUMER_KEY, BL_CONSUMER_SECRET, BL_TOKEN, BL_TOKEN_SECRET)
+    for cond in ("U", "N"):
+        try:
+            r = requests.get(
+                f"{BL_BASE}/items/{item_type}/{item_no}/price",
+                params={"guide_type": "sold", "new_or_used": cond, "currency_code": "USD"},
+                auth=auth, timeout=8,
+            )
+            if r.status_code == 200:
+                out[cond] = r.json().get("data", {})
+            else:
+                print(f"[BL price] {item_type} {item_no} {cond} → {r.status_code}", file=sys.stderr)
+        except Exception as e:
+            print(f"[BL price] error: {e}", file=sys.stderr)
+    return out
+
+
 @app.route("/api/minifig_price/<fig_id>")
 def get_minifig_price(fig_id):
-    auth = OAuth1(BL_CONSUMER_KEY, BL_CONSUMER_SECRET, BL_TOKEN, BL_TOKEN_SECRET)
-    results = {}
-
     theme_map = {
         'sw': 'Star Wars', 'hp': 'Harry Potter', 'lor': 'Lord of the Rings',
         'loz': 'Legend of Zelda', 'dim': 'Dimensions', 'cmf': 'Collectible Minifigure',
@@ -1321,23 +1343,18 @@ def get_minifig_price(fig_id):
         'col': 'Collectible Series', 'pm': 'Pirates of the Caribbean', 'njo': 'Ninjago',
     }
     prefix = (re.match(r'^([a-z]+)', fig_id.lower()) or re.match(r'', '')).group(0)
-    results["category"] = theme_map.get(prefix, 'Minifigure')
-
-    for condition in ("U", "N"):
-        try:
-            r = requests.get(
-                f"https://api.bricklink.com/api/store/v1/items/MINIFIG/{fig_id}/price",
-                params={"guide_type": "sold", "new_or_used": condition, "currency_code": "USD"},
-                auth=auth, timeout=8,
-            )
-            if r.status_code == 200:
-                results[condition] = r.json().get("data", {})
-            else:
-                print(f"[BrickLink price] {condition} {fig_id} → {r.status_code}", file=sys.stderr)
-        except Exception as e:
-            print(f"[BrickLink price] error: {e}", file=sys.stderr)
-
+    results = {"category": theme_map.get(prefix, 'Minifigure')}
+    results.update(_bl_sold_price("MINIFIG", fig_id))
     return jsonify(results)
+
+
+@app.route("/api/set_price/<set_num>")
+def get_set_price(set_num):
+    """BrickLink last-6-months sold price (Used + New) for a set. BrickLink set
+    ids carry the variant suffix (e.g. 75300-1), matching Rebrickable's set_num;
+    a bare number defaults to '-1'."""
+    bl_no = set_num if "-" in set_num else f"{set_num}-1"
+    return jsonify(_bl_sold_price("SET", bl_no))
 
 
 @app.route("/api/minifig_parts/<minifig_id>")

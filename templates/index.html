@@ -1197,6 +1197,10 @@
     </div>
     <button onclick="goTo('screen-sets')" class="back-btn">← Back</button>
   </div>
+  <div class="price-section" id="setPriceSection" style="display:none;margin:12px 14px 0;">
+    <div class="price-label">BrickLink Price Guide (last 6 months)</div>
+    <div class="price-grid" id="setPriceGrid"></div>
+  </div>
   <div class="set-tabs">
     <button onclick="showSetPartsView()" id="tabParts" class="set-tab active">Parts</button>
     <button onclick="showSetMinifigsView()" id="tabMinifigs" class="set-tab">Minifigs</button>
@@ -3316,12 +3320,29 @@
     addNextPart(0);
   }
 
-  function renderMinifigPrice(data) {
-    const grid = document.getElementById('priceGrid');
-    const section = document.getElementById('priceSection');
+  // Render BrickLink sold-price cards (Used + New) into a grid/section. Shared by
+  // the minifig identify panel and the set-details panel.
+  function _renderSoldPriceCards(data, gridEl, sectionEl) {
     const fmt = v => v ? `$${parseFloat(v).toFixed(2)}` : '—';
     const cards = [];
+    for (const [cond, label] of [['U', 'Used'], ['N', 'New']]) {
+      const d = data[cond];
+      if (!d || !d.avg_price) continue;
+      cards.push(`
+        <div class="price-card">
+          <div class="price-card-title">${label}</div>
+          <div class="price-avg">${fmt(d.avg_price)}</div>
+          <div class="price-range">${fmt(d.min_price)} – ${fmt(d.max_price)}</div>
+          <div class="price-sales">${d.unit_quantity || 0} sales</div>
+        </div>`);
+    }
+    gridEl.innerHTML = cards.length
+      ? cards.join('')
+      : '<span style="color:#888;font-size:13px">Price unavailable</span>';
+    if (sectionEl) sectionEl.style.display = 'block';
+  }
 
+  function renderMinifigPrice(data) {
     // Display theme/category in the info section if available
     if (data.category) {
       const categoryRow = document.getElementById('categoryRow');
@@ -3331,25 +3352,8 @@
         categoryRow.style.display = '';
       }
     }
-
-    for (const [cond, label] of [['U', 'Used'], ['N', 'New']]) {
-      const d = data[cond];
-      if (!d || !d.avg_price) continue;
-
-      cards.push(`
-        <div class="price-card">
-          <div class="price-card-title">${label}</div>
-          <div class="price-avg">${fmt(d.avg_price)}</div>
-          <div class="price-range">${fmt(d.min_price)} – ${fmt(d.max_price)}</div>
-          <div class="price-sales">${d.unit_quantity || 0} sales</div>
-        </div>`);
-    }
-    if (!cards.length) {
-      grid.innerHTML = '<span style="color:#888;font-size:13px">Price unavailable</span>';
-      return;
-    }
-    grid.innerHTML = cards.join('');
-    section.style.display = 'block';
+    _renderSoldPriceCards(data, document.getElementById('priceGrid'),
+                          document.getElementById('priceSection'));
   }
 
   function renderPartSetCount() {
@@ -4320,6 +4324,19 @@
     // Store current set for switching views
     window.currentSetNum = setNum;
     window.currentSetName = setName;
+
+    // BrickLink sold price (last 6 months, Used + New)
+    const sps = document.getElementById('setPriceSection');
+    document.getElementById('setPriceGrid').innerHTML =
+      '<span style="color:#888;font-size:13px">Loading price…</span>';
+    sps.style.display = 'block';
+    fetch(`/api/set_price/${encodeURIComponent(setNum)}`)
+      .then(r => r.json())
+      .then(d => _renderSoldPriceCards(d, document.getElementById('setPriceGrid'), sps))
+      .catch(() => {
+        document.getElementById('setPriceGrid').innerHTML =
+          '<span style="color:#888;font-size:13px">Price unavailable</span>';
+      });
 
     // Show parts view by default
     showSetPartsView();
