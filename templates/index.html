@@ -738,6 +738,62 @@
     }
     .modal-close-btn:active { background: rgba(255,255,255,0.3); }
 
+    /* ── Voice add ── */
+    .voice-add-btn {
+      width: 100%; margin-top: 10px; padding: 11px;
+      background: var(--surface3); color: var(--text);
+      border: 1px solid var(--border-bright); border-radius: var(--radius);
+      font-family: var(--font-display); font-size: 14px; font-weight: 600;
+      letter-spacing: 0.5px; text-transform: uppercase; cursor: pointer;
+    }
+    .voice-add-btn:active { background: var(--surface2); }
+    .voice-modal {
+      display: none; position: fixed; inset: 0; z-index: 1100;
+      background: rgba(0,0,0,0.8); align-items: center; justify-content: center; padding: 20px;
+    }
+    .voice-modal.active { display: flex; }
+    .voice-sheet {
+      background: var(--surface2); border: 1px solid var(--border-bright);
+      border-radius: 16px; padding: 22px 20px; width: 100%; max-width: 420px;
+      display: flex; flex-direction: column; align-items: center; gap: 14px;
+    }
+    .voice-title {
+      font-family: var(--font-display); font-size: 20px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.5px; color: var(--text);
+    }
+    .voice-hint { font-size: 13px; color: var(--muted); text-align: center; line-height: 1.5; }
+    .voice-hint em { color: var(--text); font-style: normal; font-family: var(--font-mono); }
+    .voice-mic {
+      width: 84px; height: 84px; border-radius: 50%; border: none; cursor: pointer;
+      background: var(--yellow); color: #fff; font-size: 34px;
+      display: flex; align-items: center; justify-content: center;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .voice-mic.listening {
+      background: #EF4444; box-shadow: 0 0 0 0 rgba(239,68,68,0.6);
+      animation: voicePulse 1.4s infinite;
+    }
+    @keyframes voicePulse {
+      0% { box-shadow: 0 0 0 0 rgba(239,68,68,0.5); }
+      70% { box-shadow: 0 0 0 18px rgba(239,68,68,0); }
+      100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); }
+    }
+    .voice-status { font-size: 13px; color: var(--muted); min-height: 18px; text-align: center; }
+    .voice-input {
+      width: 100%; padding: 12px 14px; border-radius: var(--radius);
+      background: var(--surface3); border: 1px solid var(--border-bright);
+      color: var(--text); font-size: 16px; font-family: var(--font-mono);
+    }
+    .voice-actions { display: flex; gap: 10px; width: 100%; }
+    .voice-actions button {
+      flex: 1; padding: 12px; border-radius: var(--radius); cursor: pointer;
+      font-family: var(--font-display); font-size: 14px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.5px; border: 1px solid var(--border-bright);
+    }
+    .voice-cancel { background: var(--surface3); color: var(--muted); }
+    .voice-go { background: var(--yellow); color: #fff; border-color: var(--yellow); }
+    .voice-error { font-size: 13px; color: #FCA5A5; text-align: center; }
+
     /* ── Shared inline section cards ── */
     .section-card {
       background: var(--surface); border-top: 1px solid var(--border);
@@ -964,6 +1020,7 @@
     </div>
     <div id="partSearchError" style="display:none;"></div>
     <div id="partSearchResults" class="local-results" style="display:none;"></div>
+    <button class="voice-add-btn" onclick="openVoiceAdd()">🎤 Add by voice</button>
   </div>
 
   <!-- Minifig search box -->
@@ -1941,7 +1998,7 @@
       }
     } catch (e) { /* offline: fall back to local data */ }
     document.getElementById('partSearchInput').value = '';
-    showIdentifyScreen({ items: [item] });
+    await showIdentifyScreen({ items: [item] });
   }
 
   async function openMinifigFromSearch(figNum, name, img) {
@@ -4299,6 +4356,158 @@
       }
     }
   });
+
+  // ── Add by voice ───────────────────────────────────────────────────────
+  // Speak (or dictate/type) a part number, color and quantity; we parse it,
+  // resolve the part against the local catalog, then open the identify screen
+  // pre-filled as a confirm card — the user reviews and taps "Add to List".
+  // The one-tap mic uses the Web Speech API (needs a secure context: HTTPS or
+  // localhost); everywhere else the text box + keyboard dictation work the same.
+  const _SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const _voiceMicSupported = !!_SR && window.isSecureContext;
+  let _recognition = null, _voiceListening = false;
+  const _numWords = { zero:0, one:1, two:2, three:3, four:4, five:5, six:6, seven:7,
+    eight:8, nine:9, ten:10, eleven:11, twelve:12, thirteen:13, fourteen:14, fifteen:15,
+    sixteen:16, seventeen:17, eighteen:18, nineteen:19, twenty:20, a:1, an:1 };
+
+  function _toNum(w) {
+    if (w == null) return null;
+    if (/^\d+$/.test(w)) return parseInt(w, 10);
+    return (w in _numWords) ? _numWords[w] : null;
+  }
+  function setVoiceStatus(t) { document.getElementById('voiceStatus').textContent = t || ''; }
+  function showVoiceError(t) {
+    const e = document.getElementById('voiceError');
+    e.textContent = t; e.style.display = 'block';
+    setVoiceStatus('');
+  }
+
+  function openVoiceAdd() {
+    document.getElementById('voiceText').value = '';
+    document.getElementById('voiceError').style.display = 'none';
+    const micBtn = document.getElementById('voiceMicBtn');
+    micBtn.style.display = _voiceMicSupported ? 'flex' : 'none';
+    setVoiceStatus(_voiceMicSupported
+      ? 'Tap the mic and speak'
+      : 'Tap your keyboard’s mic to dictate, or type below');
+    document.getElementById('voiceModal').classList.add('active');
+    if (!_voiceMicSupported) setTimeout(() => document.getElementById('voiceText').focus(), 120);
+  }
+  function closeVoiceAdd() {
+    stopVoiceListen();
+    document.getElementById('voiceModal').classList.remove('active');
+  }
+
+  function toggleVoiceListen() {
+    if (_voiceListening) { stopVoiceListen(); return; }
+    if (!_SR) return;
+    document.getElementById('voiceError').style.display = 'none';
+    _recognition = new _SR();
+    _recognition.lang = 'en-US';
+    _recognition.interimResults = true;
+    _recognition.continuous = false;
+    _recognition.maxAlternatives = 1;
+    _recognition.onresult = (e) => {
+      let txt = '';
+      for (let i = 0; i < e.results.length; i++) txt += e.results[i][0].transcript;
+      document.getElementById('voiceText').value = txt.trim();
+    };
+    _recognition.onerror = (e) => {
+      showVoiceError(e.error === 'not-allowed'
+        ? 'Microphone blocked. Allow mic access, or type below.'
+        : 'Mic error — type below instead.');
+      stopVoiceListen();
+    };
+    _recognition.onend = () => {
+      const wasListening = _voiceListening;
+      stopVoiceListen();
+      if (wasListening && document.getElementById('voiceText').value.trim()) submitVoiceText();
+    };
+    try { _recognition.start(); } catch (e) { return; }
+    _voiceListening = true;
+    document.getElementById('voiceMicBtn').classList.add('listening');
+    document.getElementById('voiceMicIcon').textContent = '⏹';
+    setVoiceStatus('Listening…');
+  }
+  function stopVoiceListen() {
+    _voiceListening = false;
+    document.getElementById('voiceMicBtn').classList.remove('listening');
+    document.getElementById('voiceMicIcon').textContent = '🎤';
+    try { _recognition && _recognition.stop(); } catch (e) {}
+  }
+
+  // Parse "<part> <color> <qty>" (flexible order/format) → {partNum, color, qty}.
+  function parseVoiceInput(raw) {
+    let s = (raw || '').toLowerCase().trim();
+    if (!s) return null;
+    // Spoken numbers sometimes arrive with separators ("30-68", "3,068")
+    s = s.replace(/[,]/g, ' ');
+
+    // 1. Color — longest catalog color name that appears as a whole phrase.
+    let color = null;
+    const names = (colors || []).slice().sort((a, b) => b.name.length - a.name.length);
+    for (const c of names) {
+      const esc = c.name.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const re = new RegExp('\\b' + esc + '\\b');
+      if (re.test(s)) { color = c; s = s.replace(re, ' ').replace(/\s+/g, ' ').trim(); break; }
+    }
+
+    // 2. Quantity — explicit marker, else a small trailing number.
+    let qty = null;
+    let m = s.match(/\b(?:quantity|qty|times|x)\s+(\d{1,3}|[a-z]+)\b/);
+    if (m) { qty = _toNum(m[1]); s = s.replace(m[0], ' ').replace(/\s+/g, ' ').trim(); }
+    if (qty == null) {
+      const toks = s.split(/\s+/).filter(Boolean);
+      if (toks.length > 1) {
+        const n = _toNum(toks[toks.length - 1]);
+        if (n != null && n >= 1 && n <= 999) { qty = n; toks.pop(); s = toks.join(' '); }
+      }
+    }
+    if (qty == null || qty < 1) qty = 1;
+
+    // 3. Part number — the remainder, normalized to alphanumerics.
+    const partNum = s.replace(/[^a-z0-9]/gi, '').toLowerCase();
+    return { partNum, color, qty };
+  }
+
+  // Pick the best catalog result for a spoken part number.
+  function _pickVoicePart(results, want) {
+    want = (want || '').toLowerCase();
+    let hit = results.find(r => (r.part_num || '').toLowerCase() === want);
+    if (hit) return hit;
+    // Mold variant: want + a single letter (prefer "b", the common modern mold).
+    const variants = results.filter(r => {
+      const pn = (r.part_num || '').toLowerCase();
+      return pn.startsWith(want) && /^[a-z]$/.test(pn.slice(want.length));
+    });
+    if (variants.length)
+      return variants.find(r => (r.part_num || '').toLowerCase() === want + 'b') || variants[0];
+    return results[0] || null;
+  }
+
+  async function submitVoiceText() {
+    stopVoiceListen();
+    const parsed = parseVoiceInput(document.getElementById('voiceText').value);
+    document.getElementById('voiceError').style.display = 'none';
+    if (!parsed || !parsed.partNum) { showVoiceError('Didn’t catch a part number — try again.'); return; }
+    setVoiceStatus(`Looking up ${parsed.partNum}…`);
+    let results = [];
+    try {
+      const r = await fetch(`/api/local/search?type=parts&q=${encodeURIComponent(parsed.partNum)}&limit=10`).then(r => r.json());
+      results = (r && r.results) || [];
+    } catch (e) {}
+    const hit = _pickVoicePart(results, parsed.partNum);
+    if (!hit) {
+      showVoiceError(`No part found for "${parsed.partNum}". Check the number and try again.`);
+      return;
+    }
+    closeVoiceAdd();
+    // Open the identify screen as the confirm card, then pre-fill colour + qty.
+    await openPartFromSearch(hit.part_num, hit.name, hit.img_url);
+    const qInput = document.getElementById('quantityInput');
+    if (qInput) { qInput.type = 'text'; qInput.value = String(parsed.qty); qInput.type = 'number'; }
+    if (parsed.color) applyColor(parsed.color.id, parsed.color.name, parsed.color.rgb);
+  }
 </script>
 
 <!-- Image Modal -->
@@ -4306,6 +4515,27 @@
   <img id="modalImage" src="" alt="Part image">
   <button class="modal-close-btn" onclick="closeImageModal()">×</button>
   <a id="modalPartLink" href="" target="_blank" style="color:var(--yellow);font-size:15px;font-weight:600;text-decoration:none;margin-top:8px;font-family:var(--font-display);letter-spacing:0.5px;">—</a>
+</div>
+
+<!-- Voice Add Modal -->
+<div id="voiceModal" class="voice-modal" onclick="if(event.target === this) closeVoiceAdd()">
+  <div class="voice-sheet">
+    <div class="voice-title">Add by voice</div>
+    <div class="voice-hint">Say a part number, color, then quantity — e.g. <em>"3068b dark green 2"</em></div>
+    <button id="voiceMicBtn" class="voice-mic" onclick="toggleVoiceListen()" style="display:none;">
+      <span id="voiceMicIcon">🎤</span>
+    </button>
+    <div id="voiceStatus" class="voice-status"></div>
+    <input id="voiceText" type="text" class="voice-input"
+      placeholder="e.g. 3068b dark green 2"
+      autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+      onkeydown="if(event.key==='Enter')submitVoiceText()">
+    <div class="voice-actions">
+      <button class="voice-cancel" onclick="closeVoiceAdd()">Cancel</button>
+      <button class="voice-go" onclick="submitVoiceText()">Find part</button>
+    </div>
+    <div id="voiceError" class="voice-error" style="display:none;"></div>
+  </div>
 </div>
 
 </body>

@@ -272,6 +272,23 @@ Single-page app with 5 screens:
 
 ## Recent Changes
 
+**Add by Voice (May 2026):**
+- "🎤 Add by voice" button on the Parts scan screen opens a modal where you speak
+  (or dictate/type) a **part number, color, and quantity** — e.g. *"3068b dark green 2"*.
+- **One-tap mic** uses the Web Speech API (`SpeechRecognition`/`webkitSpeechRecognition`),
+  shown only in a **secure context** (HTTPS or `localhost`). Over plain HTTP (e.g. the
+  phone on the tailnet) the mic is hidden and the text box + **keyboard dictation** are
+  used instead — same parser, works everywhere. (Enable HTTPS on the tailnet via
+  `tailscale serve` to get the one-tap mic on the phone.)
+- `parseVoiceInput()` extracts: **color** (longest catalog color-name phrase match
+  against the `colors` list), **quantity** (explicit `quantity/qty/times/x N`, or a small
+  trailing number; number-words supported), and **part number** (the normalized
+  remainder). `_pickVoicePart()` resolves it against the local catalog (exact, then
+  mold-variant preferring `b`).
+- Reuses the **identify screen as the confirm card**: `submitVoiceText()` → `openPartFromSearch()`
+  (now awaited) → pre-fills quantity and `applyColor(parsed color)`; the user reviews and
+  taps the existing "Add to List" (so list selection / picker behavior is unchanged).
+
 **Catalog Change-Tracking — renames, set contents & tables (May 2026):**
 - `_diff_catalog` now records, per category, **added / removed / renamed** items
   (rename = name changed for the same `part_num`/`fig_num`/`set_num`), plus
