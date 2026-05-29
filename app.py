@@ -76,11 +76,40 @@ def _local_resolve_part(bl_id):
     if conn is None:
         return None
     try:
+        # 1. Exact identity match — covers the vast majority of standard parts.
         row = conn.execute(
             "SELECT part_num, name, img_url FROM parts WHERE part_num = ?",
             (bl_id,),
         ).fetchone()
-        return dict(row) if row else None
+        if row:
+            return dict(row)
+
+        # 2. Mold-variant fallback. BrickLink often uses a bare number (e.g. 3068)
+        #    where Rebrickable splits molds with a single-letter suffix
+        #    (3068a "without groove" / 3068b "with groove"). Match part_num =
+        #    bl_id + exactly one lowercase letter (GLOB has no trailing *, so
+        #    printed variants like 3068bpr0001 are excluded) and pick the variant
+        #    that appears in the most set inventories — i.e. the common modern
+        #    part (3068b, 7961 sets, over 3068a, 144). This keeps the single most
+        #    common LEGO parts resolving locally instead of depending on a live
+        #    API call that can time out or hit the rate limit mid-scan.
+        if bl_id.isalnum():
+            row = conn.execute(
+                """
+                SELECT p.part_num, p.name, p.img_url,
+                       (SELECT COUNT(*) FROM inventory_parts ip
+                        WHERE ip.part_num = p.part_num) AS freq
+                FROM parts p
+                WHERE p.part_num GLOB ?
+                ORDER BY freq DESC, p.part_num
+                LIMIT 1
+                """,
+                (bl_id + "[a-z]",),
+            ).fetchone()
+            if row:
+                return {"part_num": row["part_num"], "name": row["name"],
+                        "img_url": row["img_url"]}
+        return None
     finally:
         conn.close()
 
