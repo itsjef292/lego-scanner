@@ -386,6 +386,15 @@
       0%, 100% { opacity: 1; }
       50% { opacity: 0.5; }
     }
+    .loading-pct {
+      font-family: var(--font-mono);
+      font-size: 30px;
+      font-weight: 700;
+      color: var(--text);
+      margin-top: 8px;
+      min-height: 36px;
+      letter-spacing: 1px;
+    }
 
     /* ── Screen 3: Identify ── */
     .photo-banner {
@@ -1319,6 +1328,7 @@
     </g>
   </svg>
   <p id="loadingText">Identifying...</p>
+  <div id="loadingPct" class="loading-pct"></div>
 </div>
 
 <!-- Screen 3: Identify -->
@@ -1792,13 +1802,39 @@
     this.value = '';
   });
 
+  // Simulated progress for the identify screen. /api/identify is one opaque
+  // request (no progress events), so we ease toward ~90% during the wait and
+  // snap to 100% when the response arrives.
+  let _loadingPctTimer = null;
+  function startLoadingProgress() {
+    const el = document.getElementById('loadingPct');
+    if (!el) return;
+    let pct = 0;
+    el.textContent = '0%';
+    clearInterval(_loadingPctTimer);
+    _loadingPctTimer = setInterval(() => {
+      if (pct < 90) {
+        pct += Math.max(0.4, (90 - pct) * 0.05);  // ease-out toward 90%
+        if (pct > 90) pct = 90;
+        el.textContent = Math.round(pct) + '%';
+      }
+    }, 130);
+  }
+  function finishLoadingProgress() {
+    clearInterval(_loadingPctTimer);
+    _loadingPctTimer = null;
+    const el = document.getElementById('loadingPct');
+    if (el) el.textContent = '100%';
+  }
+
   function identifyPart(file) {
     const form = new FormData();
     form.append('image', file);
+    startLoadingProgress();
     fetch('/api/identify', { method: 'POST', body: form })
       .then(r => r.json())
-      .then(data => showIdentifyScreen(data))
-      .catch(() => showIdentifyScreen({ items: [] }));
+      .then(data => { finishLoadingProgress(); showIdentifyScreen(data); })
+      .catch(() => { finishLoadingProgress(); showIdentifyScreen({ items: [] }); });
   }
 
   async function searchPartByNumber() {

@@ -245,7 +245,7 @@ Single-page app with 5 screens:
 - **List management UI** — Add/remove buttons in list view for quick quantity adjustments
 - **Color-specific images** — Cache and display correct images for each part/color variant
 - **Design system** — Azure blue (`#0080FF`) accent; dark backgrounds (`#080808`/`#111`/`#1A1A1A`); Google Fonts (Barlow Condensed for display, Barlow for body, Space Mono for IDs/numbers); CSS custom properties throughout
-- **Loading screen** — CSS scan-beam animation (yellow bar sweeping across corner-bracket frame); hidden SVG kept in DOM for JS `animateScan()` compat; 2×4 LEGO brick SVG (isometric 3/4 view with 8 studs, radial gradient stud tops)
+- **Loading screen** — CSS scan-beam animation (yellow bar sweeping across corner-bracket frame); hidden SVG kept in DOM for JS `animateScan()` compat; 2×4 LEGO brick SVG (isometric 3/4 view with 8 studs, radial gradient stud tops). Shows a **simulated progress %** (`#loadingPct`, `startLoadingProgress()`/`finishLoadingProgress()`): `/api/identify` is one opaque request with no progress events, so it eases toward ~90% during the wait and snaps to 100% on response.
 
 **No external JS frameworks** — Pure vanilla JS with event listeners and DOM manipulation
 
