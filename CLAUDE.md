@@ -202,6 +202,7 @@ Flask server with 10+ endpoints:
 - `GET /api/part_in_lists/<part_num>/<color_id>` — Find all lists containing a specific part/color with quantities
 - `POST /api/add_part` — Add/update part in list (merges quantities if exists)
 - `POST /api/remove_part_one` — Decrement part quantity by 1 (delete if qty becomes 0)
+- `GET /api/partlists/<id>/bricklink_wanted` — Export a parts list as BrickLink Wanted List XML (part_num→BrickLink id via `bl_aliases`, color→BrickLink color via `bl_colors`)
 
 **Minifig Management:**
 - `GET /api/minifiglists` — Fetch minifig lists
@@ -271,6 +272,22 @@ Single-page app with 5 screens:
 ---
 
 ## Recent Changes
+
+**Export to BrickLink Wanted List (May 2026):**
+- Lists screen → "🛒 Export to BrickLink Wanted List" builds the selected parts
+  list as BrickLink Wanted List **XML** (upload format: `<ITEM><ITEMTYPE>P…<ITEMID><COLOR><MINQTY>`)
+  in a modal with **Copy** / **Download** + upload steps (BrickLink → Want → Create
+  Wanted List → Upload).
+- `GET /api/partlists/<id>/bricklink_wanted` pages the whole list from Rebrickable
+  and converts each entry: **part_num → BrickLink item id** (`_rb_part_to_bl`, reverse
+  of `bl_aliases`; falls back to the part_num) and **color id → BrickLink color id**
+  (`_rb_color_to_bl` via the new `bl_colors` table). Returns `{xml, item_count,
+  total_qty, unmapped_colors}`; colors with no BrickLink mapping are emitted without
+  `<COLOR>` ("any color") and counted.
+- `bl_colors` (rebrickable color id → BrickLink color id) is harvested in
+  `build_brick_db` (`harvest_bl_colors`, 1 request, ~216/275 colors mapped), same
+  every-build/graceful pattern as `bl_aliases`. (Minifig lists can't be exported —
+  Rebrickable exposes no BrickLink minifig ids to reverse-map.)
 
 **Add by Voice (May 2026):**
 - "🎤 Add by voice" button on the Parts scan screen opens a modal where you speak

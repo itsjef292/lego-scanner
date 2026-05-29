@@ -880,6 +880,97 @@ def get_partlist_parts(list_id):
     return jsonify(data), resp.status_code
 
 
+def _rb_part_to_bl(conn, part_num):
+    """Rebrickable part_num → BrickLink item id (reverse of bl_aliases). Falls
+    back to the part_num itself (identical for most standard parts)."""
+    if conn is not None and part_num:
+        try:
+            row = conn.execute(
+                "SELECT bl_id FROM bl_aliases WHERE part_num = ? ORDER BY length(bl_id), bl_id LIMIT 1",
+                (part_num,),
+            ).fetchone()
+            if row:
+                return row[0]
+        except sqlite3.OperationalError:
+            pass
+    return part_num
+
+
+def _rb_color_to_bl(conn, color_id):
+    """Rebrickable color id → BrickLink color id (bl_colors), or None if unmapped."""
+    if conn is not None and color_id is not None:
+        try:
+            row = conn.execute("SELECT bl_id FROM bl_colors WHERE rb_id = ?", (color_id,)).fetchone()
+            if row:
+                return row[0]
+        except sqlite3.OperationalError:
+            pass
+    return None
+
+
+@app.route("/api/partlists/<int:list_id>/bricklink_wanted")
+def export_bricklink_wanted(list_id):
+    """Export a parts list as a BrickLink Wanted List XML (upload format).
+
+    Translates each Rebrickable part_num → BrickLink item id (bl_aliases) and
+    color id → BrickLink color id (bl_colors). Returns {xml, item_count,
+    total_qty, unmapped_colors}. Parts whose color has no BrickLink mapping are
+    included without a <COLOR> (BrickLink treats as any color) and counted.
+    """
+    from xml.sax.saxutils import escape
+    conn = local_db()
+    try:
+        items = []
+        page = 1
+        while page <= 200:  # safety cap (~20k parts at page_size 100)
+            resp = rebrickable_get(
+                f"/users/{USER_TOKEN}/partlists/{list_id}/parts/",
+                params={"key": API_KEY, "page_size": 100, "page": page},
+            )
+            if resp is None or resp.status_code != 200:
+                return jsonify({"error": "Couldn't fetch list parts from Rebrickable"}), 502
+            data = resp.json()
+            for it in data.get("results", []):
+                items.append((
+                    (it.get("part") or {}).get("part_num"),
+                    (it.get("color") or {}).get("id"),
+                    it.get("quantity") or 1,
+                ))
+            if not data.get("next"):
+                break
+            page += 1
+
+        lines = ["<INVENTORY>"]
+        total_qty = 0
+        unmapped_colors = 0
+        for part_num, color_id, qty in items:
+            if not part_num:
+                continue
+            bl_item = _rb_part_to_bl(conn, part_num)
+            bl_color = _rb_color_to_bl(conn, color_id)
+            total_qty += int(qty)
+            lines.append("  <ITEM>")
+            lines.append("    <ITEMTYPE>P</ITEMTYPE>")
+            lines.append(f"    <ITEMID>{escape(str(bl_item))}</ITEMID>")
+            if bl_color is not None:
+                lines.append(f"    <COLOR>{int(bl_color)}</COLOR>")
+            else:
+                unmapped_colors += 1
+            lines.append(f"    <MINQTY>{int(qty)}</MINQTY>")
+            lines.append("  </ITEM>")
+        lines.append("</INVENTORY>")
+
+        return jsonify({
+            "xml": "\n".join(lines),
+            "item_count": len([i for i in items if i[0]]),
+            "total_qty": total_qty,
+            "unmapped_colors": unmapped_colors,
+        })
+    finally:
+        if conn is not None:
+            conn.close()
+
+
 def _part_color_img_url(part_num, color_id):
     if not part_num or color_id is None:
         return None

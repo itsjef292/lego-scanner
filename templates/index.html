@@ -807,6 +807,17 @@
       background: var(--surface3); border-bottom: 1px solid var(--border);
     }
     .bl-match-note b { color: var(--yellow); font-family: var(--font-mono); }
+    .bl-steps {
+      align-self: stretch; margin: 0; padding-left: 20px; color: var(--muted);
+      font-size: 13px; line-height: 1.6;
+    }
+    .bl-steps b { color: var(--text); }
+    .bl-xml {
+      width: 100%; height: 160px; resize: vertical; border-radius: var(--radius);
+      background: var(--surface3); border: 1px solid var(--border-bright);
+      color: var(--text); font-family: var(--font-mono); font-size: 12px; padding: 10px;
+      white-space: pre; overflow: auto;
+    }
 
     /* ── Shared inline section cards ── */
     .section-card {
@@ -1119,6 +1130,12 @@
       <button class="action-btn" onclick="importCSV()">Import</button>
     </div>
     <div id="csvStatus" class="status-text"></div>
+  </div>
+
+  <div class="lists-import-section">
+    <div class="sub-label">Export</div>
+    <button class="action-btn" onclick="exportBricklink()">🛒 Export to BrickLink Wanted List</button>
+    <div id="blExportStatus" class="status-text"></div>
   </div>
 
   <div id="listsError" class="list-msg"></div>
@@ -3465,6 +3482,43 @@
     fetchListPage(listId, ++_listPage, false);
   }
 
+  // ── Export a parts list as a BrickLink Wanted List (XML upload format) ──
+  async function exportBricklink() {
+    const listId = document.getElementById('listsViewSelect').value;
+    const status = document.getElementById('blExportStatus');
+    if (!listId) { status.innerHTML = '<span style="color:#ff6b6b;">Select a list first.</span>'; return; }
+    status.textContent = 'Building BrickLink Wanted List…';
+    try {
+      const r = await fetch(`/api/partlists/${listId}/bricklink_wanted`);
+      const d = await r.json();
+      if (!r.ok) { status.innerHTML = `<span style="color:#ff6b6b;">${escapeHtml(d.error || 'Export failed')}</span>`; return; }
+      status.textContent = '';
+      document.getElementById('blExportXml').value = d.xml || '';
+      let summary = `${d.item_count} item${d.item_count === 1 ? '' : 's'} · ${d.total_qty} pcs`;
+      if (d.unmapped_colors) summary += ` · ${d.unmapped_colors} with no BrickLink color (added as “any color”)`;
+      document.getElementById('blExportSummary').textContent = summary;
+      document.getElementById('blExportModal').classList.add('active');
+    } catch (e) {
+      status.innerHTML = '<span style="color:#ff6b6b;">Network error.</span>';
+    }
+  }
+  function closeBlExport() { document.getElementById('blExportModal').classList.remove('active'); }
+  function copyBlXml() {
+    const ta = document.getElementById('blExportXml');
+    ta.select();
+    const done = () => showToast('Copied — paste into BrickLink’s Upload box');
+    if (navigator.clipboard) navigator.clipboard.writeText(ta.value).then(done).catch(() => { document.execCommand('copy'); done(); });
+    else { document.execCommand('copy'); done(); }
+  }
+  function downloadBlXml() {
+    const blob = new Blob([document.getElementById('blExportXml').value], { type: 'text/xml' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'bricklink_wanted_list.xml';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
   async function importCSV() {
     const fileInput = document.getElementById('csvFileInput');
     const listId = document.getElementById('listsViewSelect').value;
@@ -4574,6 +4628,25 @@
   <img id="modalImage" src="" alt="Part image">
   <button class="modal-close-btn" onclick="closeImageModal()">×</button>
   <a id="modalPartLink" href="" target="_blank" style="color:var(--yellow);font-size:15px;font-weight:600;text-decoration:none;margin-top:8px;font-family:var(--font-display);letter-spacing:0.5px;">—</a>
+</div>
+
+<!-- BrickLink Export Modal -->
+<div id="blExportModal" class="voice-modal" onclick="if(event.target === this) closeBlExport()">
+  <div class="voice-sheet" style="max-width:520px;">
+    <div class="voice-title">BrickLink Wanted List</div>
+    <div id="blExportSummary" class="voice-hint"></div>
+    <ol class="bl-steps">
+      <li>Tap <b>Copy</b> (or <b>Download</b>) below.</li>
+      <li>On BrickLink: <b>Want → Create a Wanted List → Upload</b>.</li>
+      <li>Paste the XML (or choose the file) and submit.</li>
+    </ol>
+    <textarea id="blExportXml" class="bl-xml" readonly onclick="this.select()"></textarea>
+    <div class="voice-actions">
+      <button class="voice-cancel" onclick="closeBlExport()">Close</button>
+      <button class="voice-cancel" onclick="downloadBlXml()">Download</button>
+      <button class="voice-go" onclick="copyBlXml()">Copy</button>
+    </div>
+  </div>
 </div>
 
 <!-- Voice Add Modal -->

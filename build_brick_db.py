@@ -109,6 +109,12 @@ CREATE TABLE part_colors (part_num TEXT, color_id INTEGER, img_url TEXT, PRIMARY
 -- identity/mold heuristic + live API).
 DROP TABLE IF EXISTS bl_aliases;
 CREATE TABLE bl_aliases (bl_id TEXT, part_num TEXT);
+
+-- Rebrickable color id -> BrickLink color id, from Rebrickable's color
+-- external_ids. Used to translate a Rebrickable list into a BrickLink Wanted
+-- List (which uses BrickLink color ids). Populated by harvest_bl_colors().
+DROP TABLE IF EXISTS bl_colors;
+CREATE TABLE bl_colors (rb_id INTEGER, bl_id INTEGER);
 """
 
 
@@ -186,6 +192,38 @@ def harvest_bl_aliases(conn):
     return n
 
 
+def harvest_bl_colors(conn):
+    """Populate bl_colors (rebrickable color id -> BrickLink color id) from
+    Rebrickable's colors external_ids (~275 colors, 1 request). Graceful: empty
+    table with no API key / on failure (BrickLink export then omits colors)."""
+    api_key = os.environ.get("REBRICKABLE_API_KEY")
+    if not api_key:
+        print("  ! bl_colors: REBRICKABLE_API_KEY not set — skipping")
+        return 0
+    try:
+        import requests
+    except ImportError:
+        return 0
+    try:
+        r = requests.get("https://rebrickable.com/api/v3/lego/colors/",
+                         params={"key": api_key, "page_size": 1000}, timeout=30)
+        r.raise_for_status()
+        batch = []
+        for c in r.json().get("results", []):
+            ext = ((c.get("external_ids") or {}).get("BrickLink") or {}).get("ext_ids") or []
+            if ext:
+                batch.append((c["id"], ext[0]))
+        if batch:
+            conn.executemany("INSERT INTO bl_colors (rb_id, bl_id) VALUES (?,?)", batch)
+        conn.commit()
+        print(f"  harvested bl_colors    {len(batch):>9,} mappings")
+        return len(batch)
+    except Exception as e:
+        print(f"  ! bl_colors harvest failed ({e}) — continuing with empty table")
+        conn.rollback()
+        return 0
+
+
 def build(src_dir, db_path):
     if not os.path.isdir(src_dir):
         print(f"ERROR: source folder not found: {src_dir}")
@@ -222,6 +260,13 @@ def build(src_dir, db_path):
     print("Harvesting BrickLink aliases…")
     harvest_bl_aliases(conn)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_bl_aliases ON bl_aliases(bl_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_bl_aliases_part ON bl_aliases(part_num)")
+    conn.commit()
+
+    # Harvest the Rebrickable->BrickLink color map (for BrickLink Wanted List export).
+    print("Harvesting BrickLink colors…")
+    harvest_bl_colors(conn)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_bl_colors ON bl_colors(rb_id)")
     conn.commit()
 
     # Derive distinct part/color combos (+ a representative image per combo)
