@@ -203,6 +203,38 @@ Single-page app with 5 screens:
 
 ## Recent Changes
 
+**Catalog Change-Tracking — renames, set contents & tables (May 2026):**
+- `_diff_catalog` now records, per category, **added / removed / renamed** items
+  (rename = name changed for the same `part_num`/`fig_num`/`set_num`), plus
+  **set-content changes** — sets whose inventory composition changed, detected via
+  a cheap per-set signature `(distinct part/color lines, total qty)` from
+  `inventories`⋈`inventory_parts` (`_set_signatures`). This is what Rebrickable's
+  frequent `inventories`-table updates actually represent.
+- The `.catalog_changes.json` record **always includes the updated `tables` list**
+  and is written on every refresh that had a prior catalog to diff — even with no
+  item/content changes — so the footer can still show *which* tables updated.
+  (Previously an inventories/themes-only update wrote nothing → footer showed only
+  "Catalog updated (N tables)" with no detail.)
+- Frontend `_renderChanges` renders an "Updated tables" line, blue `~` rename rows,
+  and a "Set contents changed (N)" group; the panel shows whenever there's any
+  change or table info. New CSS: `.cc-sign.ren`, `.cc-tables`.
+
+**Private Access via Tailscale + autostart (May 2026):**
+- App reachable privately from a phone over **Tailscale** (`0.0.0.0:5001` on the
+  tailnet, WireGuard-encrypted, no public exposure / ngrok / port forwarding) —
+  see **Private Access (Tailscale + autostart)** under Deployment.
+- `start.sh` drops the ngrok tunnel and prints the auto-detected Tailscale URL
+  (ngrok static-domain config left intact for optional reuse).
+- `com.brickscanner.app.plist`: launchd LaunchAgent runs the Flask server at login
+  and restarts it on crash (`KeepAlive`); local-only. Logs to `app.log` (git-ignored).
+- Daily catalog-refresh job moved **04:30 → 07:30 ET** (just after Rebrickable's
+  ~07:12 ET catalog update); launchd uses local time so it tracks DST.
+
+**Set-Details Image Preview (May 2026):**
+- In the Sets tab, tapping a part or minifig thumbnail in a set's Parts/Minifigures
+  list opens the full-screen image modal. Reused `openImageModal` with an optional
+  `linkType` arg so minifigs link to BrickLink `M=` catalog pages (parts keep `P=`).
+
 **Offline Catalog Search (May 2026):**
 - New local search over the full Rebrickable catalog (~62k parts, ~16k minifigs, ~26k sets) backed by a local SQLite DB — instant and not subject to the 60 req/min Rebrickable rate limit
 - `build_brick_db.py` loads the `Brick Parts/` CSV dump into `brick_parts.db` (parts, minifigs, sets, colors, categories, themes, inventories; derives per-part thumbnails and distinct part/color combos)
