@@ -14,8 +14,9 @@
   Uninstall:
     launchctl unload ~/Library/LaunchAgents/com.brickscanner.catalog-refresh.plist
 
-  Runs every day at 04:30. If the Mac is asleep at that time, launchd runs it
-  at the next wake. Logs go to catalog_refresh.log in the project folder.
+  Runs every day at 07:30 local time (America/New_York → Eastern, tracks DST),
+  shortly after Rebrickable's ~07:12 ET catalog update. If the Mac is asleep at
+  that time, launchd runs it at the next wake. Logs go to catalog_refresh.log.
 -->
 <plist version="1.0">
 <dict>
@@ -31,7 +32,7 @@
     <key>StartCalendarInterval</key>
     <dict>
         <key>Hour</key>
-        <integer>4</integer>
+        <integer>7</integer>
         <key>Minute</key>
         <integer>30</integer>
     </dict>
