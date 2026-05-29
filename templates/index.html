@@ -2704,39 +2704,44 @@
       document.getElementById('debugLabel').style.display = 'block';
     }
 
-    // Colour selection: match the sampled pixel against the part's FULL palette
-    // (every colour it comes in), using Brickognize's predicted colours as a
-    // prior — not a hard restriction. Brickognize's shortlist sometimes omits
-    // the real colour (e.g. it offered Blue/Medium Blue but not Dark Azure for an
-    // azure tile), so restricting to it produced wrong picks; matching the full
-    // palette lets the closest real LEGO colour win, while shortlist members get
-    // a bonus so the ML prediction still breaks near-ties.
+    // Colour selection. Brickognize predicts the object's colour(s):
+    //  • exactly one predicted colour → it's confident, trust it outright (pixel
+    //    sampling can mislead — a well-lit Dark Green part reads close to Green);
+    //  • multiple (or none) → match the sampled pixel against the part's FULL
+    //    palette, with the predicted colours as a prior (not a hard restriction —
+    //    the shortlist sometimes omits the true colour, e.g. Dark Azure for an
+    //    azure tile), so the closest real LEGO colour wins but the ML prediction
+    //    breaks near-ties.
     const serverColors = items[0].candidate_colors || [];
     const colorByName = colors.length
       ? Object.fromEntries(colors.map(c => [c.name.toLowerCase(), c]))
       : {};
     const colorMap = colors.length ? Object.fromEntries(colors.map(c => [c.id, c])) : {};
 
-    // Brickognize shortlist → set of Rebrickable colour ids (resolved by name).
-    const shortlistIds = new Set(
-      serverColors.map(sc => colorByName[(sc.name || '').toLowerCase()]?.id).filter(v => v != null)
-    );
+    // Resolve Brickognize's predicted colours → Rebrickable colour objects.
+    const serverCandidates = serverColors
+      .map(sc => colorByName[(sc.name || '').toLowerCase()])
+      .filter(Boolean);
+    const shortlistIds = new Set(serverCandidates.map(c => c.id));
 
     // Pool = the part's full palette; fall back to the shortlist, then all colours.
     let pool = partColors.map(pc => colorMap[pc.color_id]).filter(Boolean);
-    if (!pool.length) pool = serverColors.map(sc => colorByName[(sc.name || '').toLowerCase()]).filter(Boolean);
+    if (!pool.length) pool = serverCandidates.slice();
 
     const avgBrightness = detectedRgb ? (detectedRgb.r + detectedRgb.g + detectedRgb.b) / 3 : 0;
-    if (detectedRgb && avgBrightness >= 70 && pool.length) {
+    if (serverCandidates.length === 1) {
+      const c = serverCandidates[0];
+      applyColor(c.id, c.name, c.rgb);
+    } else if (detectedRgb && avgBrightness >= 70 && pool.length) {
       const closest = findClosestLegoColor(
         detectedRgb.r, detectedRgb.g, detectedRgb.b,
         pool, detectedRgb.darkFraction || 0, null, shortlistIds, false
       );
       if (closest) applyColor(closest.id, closest.name, closest.rgb);
-    } else if (serverColors.length) {
+    } else if (serverCandidates.length) {
       // Too dark to sample reliably — trust Brickognize's first predicted colour.
-      const first = colorByName[(serverColors[0].name || '').toLowerCase()];
-      if (first) applyColor(first.id, first.name, first.rgb);
+      const c = serverCandidates[0];
+      applyColor(c.id, c.name, c.rgb);
     }
 
     // Alternatives
