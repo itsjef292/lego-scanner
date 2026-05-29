@@ -4,9 +4,11 @@
 <!--
   Daily offline-catalog refresh (launchd LaunchAgent).
 
-  Install:
-    cp com.brickscanner.catalog-refresh.plist ~/Library/LaunchAgents/
-    launchctl load ~/Library/LaunchAgents/com.brickscanner.catalog-refresh.plist
+  This is a TEMPLATE: __PROJECT_DIR__ is filled in with the real project path
+  by ./install_agents.sh at install time, so it works on any machine/user/path.
+
+  Install (from the project dir):
+    ./install_agents.sh          # substitutes paths, copies to ~/Library/LaunchAgents, loads both agents
 
   Run once now to test:
     launchctl start com.brickscanner.catalog-refresh
@@ -26,7 +28,7 @@
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>/Users/jef/Claude/Brick Scanner/refresh_catalog.sh</string>
+        <string>__PROJECT_DIR__/refresh_catalog.sh</string>
     </array>
 
     <key>StartCalendarInterval</key>
@@ -40,9 +42,9 @@
     <!-- The script writes its own timestamped catalog_refresh.log; launchd only
          captures stray stdout/stderr (e.g. uncaught tracebacks) here. -->
     <key>StandardOutPath</key>
-    <string>/Users/jef/Claude/Brick Scanner/catalog_refresh.launchd.log</string>
+    <string>__PROJECT_DIR__/catalog_refresh.launchd.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/jef/Claude/Brick Scanner/catalog_refresh.launchd.log</string>
+    <string>__PROJECT_DIR__/catalog_refresh.launchd.log</string>
 
     <key>RunAtLoad</key>
     <false/>

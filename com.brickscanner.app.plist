@@ -8,9 +8,11 @@
   over Tailscale whenever this Mac is logged in. RunAtLoad starts it at login;
   KeepAlive restarts it if it crashes or exits.
 
-  Install:
-    cp com.brickscanner.app.plist ~/Library/LaunchAgents/
-    launchctl load ~/Library/LaunchAgents/com.brickscanner.app.plist
+  This is a TEMPLATE: __PROJECT_DIR__ is filled in with the real project path
+  by ./install_agents.sh at install time, so it works on any machine/user/path.
+
+  Install (from the project dir):
+    ./install_agents.sh          # substitutes paths, copies to ~/Library/LaunchAgents, loads both agents
 
   Stop temporarily / restart:
     launchctl stop  com.brickscanner.app
@@ -39,7 +41,7 @@
     </array>
 
     <key>WorkingDirectory</key>
-    <string>/Users/jef/Claude/Brick Scanner</string>
+    <string>__PROJECT_DIR__</string>
 
     <key>RunAtLoad</key>
     <true/>
@@ -48,8 +50,8 @@
     <true/>
 
     <key>StandardOutPath</key>
-    <string>/Users/jef/Claude/Brick Scanner/app.log</string>
+    <string>__PROJECT_DIR__/app.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/jef/Claude/Brick Scanner/app.log</string>
+    <string>__PROJECT_DIR__/app.log</string>
 </dict>
 </plist>
