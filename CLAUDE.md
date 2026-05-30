@@ -198,6 +198,7 @@ Flask server with 10+ endpoints:
 - `POST /api/partlists` — Create new parts list
 - `DELETE /api/partlists/<id>` — Delete list
 - `GET /api/partlists/<id>/parts` — Get parts in a list (paginated, with color-specific images)
+- `GET /api/partlists/<id>/parts_all` — Flat, lightweight dump of the **entire** list (throttled paging, no per-part image fan-out) for the Lists-screen **live search**. Color-specific images are overlaid from the local `part_colors` table (`_local_part_color_imgs`, ~94% coverage, zero API calls), falling back to the generic part image; graceful when the DB is absent.
 - `GET /api/partlists/<id>/parts/<part_num>/<color_id>` — Check if specific part/color exists in list
 - `GET /api/part_in_lists/<part_num>/<color_id>` — Find all lists containing a specific part/color with quantities
 - `POST /api/add_part` — Add/update part in list (merges quantities if exists)
@@ -245,8 +246,11 @@ Single-page app with 5 screens:
 - **Inline list creation** — Create new lists directly from picker modals without navigation
 - **Expandable parts** — Minifigure parts section is collapsible to reduce visual clutter
 - **List management UI** — Add/remove buttons in list view for quick quantity adjustments
+- **List live search** — A search box in the Lists view filters the whole list **as you type** (part #, name, or colour) with an `N of M parts` count. The full list is loaded once into memory via `/api/partlists/<id>/parts_all` (`_listAllParts`, `renderListParts`/`filterListParts`); replaces the old Load-More pagination. The `+/−` steppers keep the in-memory list + count in sync.
+- **Voice quick-add mode** — A persisted (localStorage) toggle in the "Add by voice" modal that adds spoken parts **straight to the selected list with no confirm card** (re-arms the mic for rapid entry); falls back to the confirm card when no list is selected or no colour was heard.
+- **Lazy image loading** — `lazyLoadImages()` (IntersectionObserver, 300px margin, `data-src`) on the set-details Parts/Minifigs lists. Avoids both iOS Safari's broken native `loading="lazy"` for dynamic rows **and** the connection-pool exhaustion ("?" broken-image flood) from rendering hundreds of `<img>` at once on large sets.
 - **Color-specific images** — Cache and display correct images for each part/color variant
-- **Design system** — Azure blue (`#0080FF`) accent; dark backgrounds (`#080808`/`#111`/`#1A1A1A`); Google Fonts (Barlow Condensed for display, Barlow for body, Space Mono for IDs/numbers); CSS custom properties throughout
+- **Design system** — See `.interface-design/system.md` (sorting-station direction). **Inter** (display/body) + **Space Mono** (catalog data — part #s, ids, quantities, dates). **Azure** accent (`#3B9EFF`, the `--yellow` token); **bluish-gray** elevation (LEGO's real structural neutral, in the azure hue family): `--bg #0C1014` → `--surface #141A22` → `--surface2 #1B2330` → `--surface3 #232E3D`; low-opacity bluish seams; glossy ABS **stud** colour chips; baseplate scan **socket** (not a magnifying glass); unified inline-SVG tab icons (`currentColor`). CSS custom properties throughout.
 - **Loading screen** — CSS scan-beam animation (yellow bar sweeping across corner-bracket frame); hidden SVG kept in DOM for JS `animateScan()` compat; 2×4 LEGO brick SVG (isometric 3/4 view with 8 studs, radial gradient stud tops). Shows a **simulated progress %** (`#loadingPct`, `startLoadingProgress()`/`finishLoadingProgress()`): `/api/identify` is one opaque request with no progress events, so it eases toward ~90% during the wait and snaps to 100% on response.
 
 **No external JS frameworks** — Pure vanilla JS with event listeners and DOM manipulation
@@ -273,6 +277,48 @@ Single-page app with 5 screens:
 ---
 
 ## Recent Changes
+
+**UI Redesign — "sorting station" + Inter (May 2026):**
+- Full visual overhaul via the `interface-design` plugin, captured in
+  `.interface-design/system.md`. Direction: a tidy LEGO **sorting station** —
+  precise + tactile + quietly playful, with the part photos carrying the colour
+  while the chrome is a neutral tray.
+- **Palette remapped onto the existing tokens** (names kept — `--yellow` is still
+  the accent, now azure `#3B9EFF`): **bluish-gray elevation** (LEGO's real
+  structural neutral, same hue as the accent) `--bg #0C1014` → `--surface` →
+  `--surface2` → `--surface3`, `--socket` for inset inputs, low-opacity bluish
+  seam borders, four-level ink. The whole app re-skins because everything routes
+  through these vars.
+- **Type → Inter** (display/body; clean, neutral, Porsche-Next-like) + **Space
+  Mono** retained for catalog data only.
+- **Signature: the stud.** Scan target is now a **baseplate socket** (dashed azure
+  drop-ring + stud-grid texture), not a magnifying glass. Every colour swatch
+  (`.color-dot`, `.swatch-btn .dot`, `.color-swatch`, `.part-item-color-dot`) gets
+  the glossy ABS **stud sheen** via a shared `::after` + `--stud-sheen`.
+- **All five tab icons** unified to inline monochrome SVGs (`.tab-ico`/`.tab-brick`,
+  `fill: currentColor`) — no more emoji; Sets is two scattered bricks.
+- Swept all raw hex in CSS **and** JS-generated markup onto the token scale
+  (Set-details + Cart/gap-analysis included); removed the global dot-grid texture
+  and the harsh 2px accent header rule. **Presentation-only — no behaviour changed.**
+
+**List live search + colour-specific list images (May 2026):**
+- Lists view gained a **search box that filters as you type** (part #, name, colour;
+  `N of M parts` count). Full list pulled once into memory via the new lightweight
+  `GET /api/partlists/<id>/parts_all` (throttled paging, no per-part image fan-out);
+  `renderListParts`/`filterListParts` filter in memory. Replaced Load-More pagination.
+- `parts_all` overlays **colour-specific images from the local catalog**
+  (`_local_part_color_imgs` over `part_colors`, derived from the bulk dump's
+  `inventory_parts.img_url`, ~94% coverage, **zero API calls**), falling back to the
+  generic part image; graceful on Render (no DB).
+
+**Voice quick-add + iOS lazy thumbnails (May 2026):**
+- "Add by voice" gained a persisted **Quick add** toggle: adds spoken parts straight
+  to the selected list with no confirm card and re-arms the mic for rapid entry;
+  falls back to the confirm card when no list/colour is available.
+- `lazyLoadImages()` (IntersectionObserver, `data-src`) on the set-details
+  Parts/Minifigs lists — fixes the iOS "?" broken-image flood on large sets (e.g.
+  Rivendell, ~991 parts) caused by rendering hundreds of `<img>` at once, and the
+  unreliable native `loading="lazy"` for dynamic rows.
 
 **Sold price for sets + minifigs (May 2026):**
 - BrickLink **last-6-months sold price** (Used + New: avg, min–max range, # sales)
@@ -541,29 +587,37 @@ When a user selects a color, the app also calls `fetchPartInLists()` to display 
 
 ### Styling Changes
 
-All CSS is in `<style>` within index.html. The design uses CSS custom properties defined in `:root`:
+All CSS is in `<style>` within index.html. Full direction + component patterns live
+in **`.interface-design/system.md`** — read it before any UI work. The design uses
+CSS custom properties defined in `:root` (bluish-gray elevation, azure accent):
 
 ```css
---yellow: #0080FF   /* primary accent (azure blue — named "yellow" for historical reasons) */
---bg: #080808       /* page background */
---surface: #111111  /* card/header background */
---surface2: #1A1A1A /* secondary surfaces */
---surface3: #222222 /* inputs, secondary buttons */
---border: #2A2A2A   /* subtle borders */
---border-bright: #3A3A3A  /* visible borders */
---text: #F0F0F0     /* primary text */
---muted: #888888    /* secondary text / labels */
---font-display: 'Barlow Condensed' /* uppercase labels, headings, buttons */
---font-body: 'Barlow'              /* body text */
---font-mono: 'Space Mono'          /* part numbers, quantities, prices */
+--yellow: #3B9EFF   /* azure accent — the single accent (named "yellow" for historical reasons) */
+--bg: #0C1014       /* page / baseplate */
+--surface: #141A22  /* card surface */
+--surface2: #1B2330 /* raised / hover */
+--surface3: #232E3D /* inputs, secondary buttons, thumbnails */
+--socket: #080B0F   /* inset inputs / the scan socket centre */
+--border: rgba(150,180,215,0.10)        /* standard bluish seam */
+--border-bright: rgba(150,180,215,0.20) /* emphasis seam */
+--text: #EAEEF4     /* primary ink */
+--muted: #9EAAB9    /* secondary ink / labels */
+--muted2: #697686   /* tertiary / placeholder */
+--stud-sheen: radial-gradient(...)      /* glossy ABS gloss on stud colour chips */
+--font-display: 'Inter'      /* UI + headings (clean, neutral) */
+--font-body: 'Inter'         /* body text */
+--font-mono: 'Space Mono'    /* catalog data ONLY: part #s, ids, quantities, prices, dates */
 ```
 
-Inventory UI colors:
-- Green (`#22C55E` / `#0B1A10` bg) for "already in inventory" state
-- Red (`#EF4444` / `#2D0A0A` bg / `#FCA5A5` text) for remove buttons
+Inventory / semantic colors (meaning only):
+- Green (`--green #46C97E` / `--green-dim` bg) for "already in inventory" state
+- Red (`--red #F0564B` / `--red-bg` bg / `--red-text` text) for remove buttons
 
 No CSS files or preprocessors; inline styles for specific elements.
-When editing styles, **always use CSS custom properties** (`var(--yellow)`, `var(--surface3)`, etc.) rather than hardcoded hex values so the design system stays consistent.
+When editing styles, **always use CSS custom properties** (`var(--yellow)`, `var(--surface3)`, etc.)
+rather than hardcoded hex — in CSS *and* in JS-generated inline styles — so the design
+system stays consistent. Don't reintroduce emoji chrome icons, the magnifying-glass scan
+metaphor, flat rectangular swatches, or the global dot-grid texture (see system.md "Avoid").
 
 ---
 
@@ -726,9 +780,10 @@ python3 app.py
 ## Key Files
 
 - **app.py** — Flask server, all API endpoints, OAuth1 signing for BrickLink
-- **templates/index.html** — 5200+ lines: HTML, CSS, vanilla JS, canvas color detection
+- **templates/index.html** — 5500+ lines: HTML, CSS, vanilla JS, canvas color detection
+- **.interface-design/system.md** — design system (direction, tokens, typography, component patterns). Read before any UI change.
 - **build_brick_db.py** — Builds `brick_parts.db` (offline search) from the `Brick Parts/` CSV dump
-- **static/** — Minifig PNG, brick SVG (parts tab icon)
+- **static/** — Minifig PNG, brick SVG (header logo; tab icons are now inline SVGs)
 - **.env** — API credentials (git-ignored)
 - **brick_parts.db / Brick Parts/** — Offline catalog DB + source CSVs (git-ignored, local dev only)
 - **start.sh** — Foreground run; auto-detects and prints the private Tailscale URL
