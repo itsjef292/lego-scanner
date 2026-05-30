@@ -1256,9 +1256,10 @@
   <div id="setSearchResults" style="background:var(--surface2);border:1px solid var(--border-bright);border-radius:var(--radius);overflow-y:auto;display:none;box-shadow:0 8px 24px rgba(0,0,0,0.5);"></div>
 
   <div id="mySetsSection" style="padding:0 14px 24px;">
-    <div style="display:flex;align-items:baseline;justify-content:space-between;margin:18px 0 12px;">
+    <div onclick="toggleMySets()" style="display:flex;align-items:center;gap:8px;margin:18px 0 12px;cursor:pointer;user-select:none;">
+      <svg id="mySetsChevron" viewBox="0 0 24 24" style="width:14px;height:14px;fill:var(--muted);transition:transform .15s;flex-shrink:0;"><path d="M7 10l5 5 5-5z"/></svg>
       <div style="font-family:var(--font-display);font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.8px;">My Sets</div>
-      <div id="mySetsCount" style="font-family:var(--font-mono);font-size:12px;color:var(--muted2);"></div>
+      <div id="mySetsCount" style="margin-left:auto;font-family:var(--font-mono);font-size:12px;color:var(--muted2);"></div>
     </div>
     <div id="mySetsGrid"></div>
   </div>
@@ -4537,11 +4538,26 @@
   }
 
   // ── "My Sets" — the owned-set collection, shown on the Sets tab ──────────
+  let _mySetsCollapsed = false;
+  try { _mySetsCollapsed = localStorage.getItem('mySetsCollapsed') === '1'; } catch (e) {}
+  function _applyMySetsCollapsed() {
+    const grid = document.getElementById('mySetsGrid');
+    const chev = document.getElementById('mySetsChevron');
+    if (grid) grid.style.display = _mySetsCollapsed ? 'none' : '';
+    if (chev) chev.style.transform = _mySetsCollapsed ? 'rotate(-90deg)' : '';
+  }
+  function toggleMySets() {
+    _mySetsCollapsed = !_mySetsCollapsed;
+    try { localStorage.setItem('mySetsCollapsed', _mySetsCollapsed ? '1' : '0'); } catch (e) {}
+    _applyMySetsCollapsed();
+  }
+
   function loadMySets() {
     const grid = document.getElementById('mySetsGrid');
     const countEl = document.getElementById('mySetsCount');
     grid.innerHTML = '<p style="color:var(--muted);text-align:center;padding:18px 0;font-size:13px;">Loading your sets…</p>';
     countEl.textContent = '';
+    _applyMySetsCollapsed();  // keep the persisted collapsed state across loads
     fetch('/api/owned_sets')
       .then(r => r.json())
       .then(data => {
