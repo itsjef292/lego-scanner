@@ -6,35 +6,45 @@
   <title>Brick Scanner</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --yellow: #0080FF;
-      --yellow-dim: #0060CC;
-      --yellow-glow: rgba(0,128,255,0.12);
-      --yellow-glow-md: rgba(0,128,255,0.2);
-      --bg: #080808;
-      --surface: #111111;
-      --surface2: #1A1A1A;
-      --surface3: #222222;
-      --border: #2A2A2A;
-      --border-bright: #3A3A3A;
-      --text: #F0F0F0;
-      --muted: #888888;
-      --muted2: #555555;
-      --blue: #3B82F6;
-      --green: #22C55E;
-      --green-dim: #14532D;
-      --red: #EF4444;
-      --red-bg: #2D0A0A;
-      --red-border: #6B1F1F;
+      /* Azure — LEGO bright blue, the single accent. (Named --yellow for
+         historical reasons; it IS the azure accent throughout.) */
+      --yellow: #3B9EFF;
+      --yellow-dim: #2C82E6;
+      --yellow-glow: rgba(59,158,255,0.12);
+      --yellow-glow-md: rgba(59,158,255,0.22);
+      /* Bluish-gray elevation — LEGO's real structural neutral, in the azure
+         hue family. baseplate → brick-1 → brick-2 → raised. */
+      --bg: #0C1014;
+      --surface: #141A22;
+      --surface2: #1B2330;
+      --surface3: #232E3D;
+      --socket: #080B0F;            /* inset inputs — darker = "type here" */
+      /* Seams — low-opacity bluish; disappear until you look for them. */
+      --border: rgba(150,180,215,0.10);
+      --border-bright: rgba(150,180,215,0.20);
+      /* Ink hierarchy — cool, four levels. */
+      --text: #EAEEF4;
+      --muted: #9EAAB9;
+      --muted2: #697686;
+      --blue: #3B9EFF;
+      /* LEGO primaries — used only where colour carries meaning. */
+      --green: #46C97E;
+      --green-dim: #173A28;
+      --red: #F0564B;
+      --red-bg: #2A0E0C;
+      --red-border: rgba(240,86,75,0.40);
       --red-text: #FCA5A5;
-      --font-display: 'Barlow Condensed', sans-serif;
-      --font-body: 'Barlow', sans-serif;
+      --font-display: 'Space Grotesk', sans-serif;
+      --font-body: 'Space Grotesk', sans-serif;
       --font-mono: 'Space Mono', monospace;
       --max-w: 480px;
-      --radius: 10px;
-      --radius-sm: 6px;
+      --radius: 12px;
+      --radius-sm: 8px;
+      /* The glossy ABS sheen used on stud-top colour chips. */
+      --stud-sheen: radial-gradient(circle at 38% 30%, rgba(255,255,255,0.34), rgba(255,255,255,0) 55%);
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -44,8 +54,6 @@
     body {
       font-family: var(--font-body);
       background: var(--bg);
-      background-image: radial-gradient(circle at 1px 1px, rgba(0,128,255,0.04) 1px, transparent 0);
-      background-size: 24px 24px;
       color: var(--text);
       min-height: 100vh;
       display: flex;
@@ -57,8 +65,8 @@
     header {
       width: 100%;
       background: var(--surface);
-      border-bottom: 2px solid var(--yellow);
-      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      padding: 12px 16px;
       display: flex;
       align-items: center;
       gap: 8px;
@@ -115,6 +123,8 @@
     }
     .mode-tab img { height: 18px; width: auto; filter: brightness(0.6); }
     .mode-tab .tab-emoji { font-size: 15px; }
+    .mode-tab .tab-brick,
+    .mode-tab .tab-ico { width: 20px; height: 20px; fill: currentColor; display: block; }
     .mode-tab.active {
       background: var(--yellow);
       color: #fff;
@@ -227,16 +237,31 @@
       border-color: var(--yellow);
       border-style: solid;
     }
-    .scan-icon {
-      font-size: 56px;
-      filter: drop-shadow(0 0 12px rgba(0,128,255,0.3));
+    /* Baseplate stud-grid texture inside the scan cell (signature) */
+    .scan-area .scan-grid {
+      position: absolute; inset: 1px; border-radius: var(--radius);
+      background-image: radial-gradient(circle at center, rgba(150,180,215,0.07) 1.6px, transparent 1.7px);
+      background-size: 22px 22px; background-position: center; pointer-events: none;
+    }
+    /* The socket the brick "clicks" into — recessed, with a dashed azure drop ring */
+    .scan-socket {
+      width: 92px; height: 92px; border-radius: 50%; position: relative; z-index: 1;
+      background: radial-gradient(circle at 50% 42%, var(--surface2), var(--socket) 72%);
+      border: 1px solid var(--border-bright);
+      box-shadow: inset 0 2px 10px rgba(0,0,0,0.6), inset 0 -1px 0 rgba(150,180,215,0.06);
+    }
+    .scan-socket::after {
+      content: ''; position: absolute; inset: 28px; border-radius: 50%;
+      border: 1.5px dashed rgba(59,158,255,0.55);
     }
     .scan-area p {
       color: var(--muted);
       text-align: center;
       font-size: 14px;
       line-height: 1.5;
+      position: relative; z-index: 1;
     }
+    .scan-area .btn { position: relative; z-index: 1; }
     #cameraInput { display: none; }
 
     /* ── Buttons ── */
@@ -285,7 +310,7 @@
       font-family: var(--font-body);
       font-size: 15px;
       appearance: none;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%230080FF' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%233B9EFF' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
       background-repeat: no-repeat;
       background-position: right 14px center;
     }
@@ -542,7 +567,7 @@
       color: var(--text); font-size: 13px; cursor: pointer;
       transition: border-color 0.12s;
     }
-    .swatch-btn.selected { border-color: var(--yellow); background: rgba(0,128,255,0.08); }
+    .swatch-btn.selected { border-color: var(--yellow); background: var(--yellow-glow); }
     .swatch-btn .dot { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.12); flex-shrink: 0; }
     .color-search-wrap { position: relative; margin-top: 4px; }
     .color-search-wrap input {
@@ -567,6 +592,12 @@
     }
     .color-option:hover { background: var(--surface3); }
     .color-swatch { width: 16px; height: 16px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.12); flex-shrink: 0; }
+    /* Glossy ABS stud sheen on every colour chip — makes a swatch read as a LEGO stud (signature) */
+    .color-dot, .swatch-btn .dot, .color-swatch, .part-item-color-dot { position: relative; overflow: hidden; }
+    .color-dot::after, .swatch-btn .dot::after, .color-swatch::after, .part-item-color-dot::after {
+      content: ''; position: absolute; inset: 0; border-radius: 50%;
+      background: var(--stud-sheen); pointer-events: none;
+    }
 
     /* ── Minifig price ── */
     .price-section {
@@ -973,7 +1004,7 @@
     .catalog-refresh-btn:disabled { opacity: 0.55; cursor: default; }
     .catalog-msg { font-size: 12px; color: var(--muted); min-height: 0; }
     .catalog-msg.ok { color: #22C55E; }
-    .catalog-msg.err { color: #ff6b6b; }
+    .catalog-msg.err { color: var(--red); }
 
     /* Collapsible "what changed in the last update" list */
     .catalog-changes { margin-top: 2px; }
@@ -1003,7 +1034,7 @@
     }
     .cc-sign { font-family: var(--font-mono); width: 12px; flex-shrink: 0; }
     .cc-sign.add { color: #22C55E; }
-    .cc-sign.rem { color: #ff6b6b; }
+    .cc-sign.rem { color: var(--red); }
     .cc-sign.ren { color: var(--yellow); }
     .cc-num { font-family: var(--font-mono); color: var(--yellow); flex-shrink: 0; }
     .cc-name { color: var(--text); min-width: 0; word-break: break-word; }
@@ -1035,19 +1066,31 @@
 
 <div class="mode-tabs">
   <button class="mode-tab active" data-mode="parts" onclick="switchMode('parts')">
-    <img src="/static/brick.svg" alt=""><span>Parts</span>
+    <svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="9" width="16" height="10" rx="2"/><rect x="7" y="5.5" width="4" height="4" rx="1"/><rect x="13" y="5.5" width="4" height="4" rx="1"/></svg><span>Parts</span>
   </button>
   <button class="mode-tab" data-mode="minifigs" onclick="switchMode('minifigs')">
-    <img src="/static/minifig.png" alt=""><span>Figs</span>
+    <svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4.5"/><rect x="6" y="13.5" width="12" height="7" rx="3"/></svg><span>Figs</span>
   </button>
   <button class="mode-tab" data-mode="sets" onclick="switchMode('sets')">
-    <span class="tab-emoji">🎁</span><span>Sets</span>
+    <svg class="tab-brick" viewBox="0 0 24 24" aria-hidden="true">
+      <!-- two bricks scattered at angles -->
+      <g transform="rotate(-16 7 8)">
+        <rect x="2" y="5" width="10" height="6" rx="1"/>
+        <rect x="3.4" y="2.8" width="2.7" height="2.7" rx="0.7"/>
+        <rect x="7.9" y="2.8" width="2.7" height="2.7" rx="0.7"/>
+      </g>
+      <g transform="rotate(14 17 16.5)">
+        <rect x="12" y="13.5" width="10" height="6" rx="1"/>
+        <rect x="13.4" y="11.3" width="2.7" height="2.7" rx="0.7"/>
+        <rect x="17.9" y="11.3" width="2.7" height="2.7" rx="0.7"/>
+      </g>
+    </svg><span>Sets</span>
   </button>
   <button class="mode-tab" data-mode="lists" onclick="switchMode('lists')">
-    <span class="tab-emoji">📋</span><span>Lists</span>
+    <svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="4" rx="1.3"/><rect x="4" y="10" width="16" height="4" rx="1.3"/><rect x="4" y="16" width="16" height="4" rx="1.3"/></svg><span>Lists</span>
   </button>
   <button class="mode-tab" data-mode="shopping" onclick="switchMode('shopping')">
-    <span class="tab-emoji">🛒</span><span>Cart</span>
+    <svg class="tab-ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h2l2.2 10.5h9l1.8-7.5H7"/><circle cx="9.5" cy="19.2" r="1.3"/><circle cx="16.5" cy="19.2" r="1.3"/></svg><span>Cart</span>
   </button>
 </div>
 
@@ -1079,9 +1122,10 @@
   </div>
 
   <div class="scan-area">
+    <span class="scan-grid"></span>
     <span class="corner-br"></span>
     <span class="corner-tr"></span>
-    <div class="scan-icon">🔍</div>
+    <div class="scan-socket"></div>
     <p id="scanHint">Take a photo of a LEGO part to identify it and add it to your parts list.</p>
     <button class="btn" onclick="document.getElementById('cameraInput').click()">Take Photo</button>
     <input type="file" id="cameraInput" accept="image/*" capture="environment">
@@ -1356,24 +1400,24 @@
       </filter>
     </defs>
     <g id="brick-content">
-      <rect x="8" y="14" width="24" height="12" fill="none" stroke="#0080FF" stroke-width="1.5" opacity="0.6"/>
-      <circle cx="11" cy="12" r="1.2" fill="#0080FF" opacity="0.6"/>
-      <circle cx="14" cy="12" r="1.2" fill="#0080FF" opacity="0.6"/>
-      <circle cx="17" cy="12" r="1.2" fill="#0080FF" opacity="0.6"/>
-      <circle cx="20" cy="12" r="1.2" fill="#0080FF" opacity="0.6"/>
-      <circle cx="23" cy="12" r="1.2" fill="#0080FF" opacity="0.6"/>
-      <circle cx="26" cy="12" r="1.2" fill="#0080FF" opacity="0.6"/>
-      <circle cx="29" cy="12" r="1.2" fill="#0080FF" opacity="0.6"/>
+      <rect x="8" y="14" width="24" height="12" fill="none" stroke="#3B9EFF" stroke-width="1.5" opacity="0.6"/>
+      <circle cx="11" cy="12" r="1.2" fill="#3B9EFF" opacity="0.6"/>
+      <circle cx="14" cy="12" r="1.2" fill="#3B9EFF" opacity="0.6"/>
+      <circle cx="17" cy="12" r="1.2" fill="#3B9EFF" opacity="0.6"/>
+      <circle cx="20" cy="12" r="1.2" fill="#3B9EFF" opacity="0.6"/>
+      <circle cx="23" cy="12" r="1.2" fill="#3B9EFF" opacity="0.6"/>
+      <circle cx="26" cy="12" r="1.2" fill="#3B9EFF" opacity="0.6"/>
+      <circle cx="29" cy="12" r="1.2" fill="#3B9EFF" opacity="0.6"/>
     </g>
     <g id="minifig-content" style="display:none;">
-      <rect x="10" y="12" width="20" height="12" rx="1" fill="none" stroke="#0080FF" stroke-width="1.5" opacity="0.6"/>
-      <circle cx="14" cy="10" r="1.5" fill="none" stroke="#0080FF" stroke-width="1.5" opacity="0.6"/>
-      <circle cx="20" cy="10" r="1.5" fill="none" stroke="#0080FF" stroke-width="1.5" opacity="0.6"/>
-      <circle cx="26" cy="10" r="1.5" fill="none" stroke="#0080FF" stroke-width="1.5" opacity="0.6"/>
+      <rect x="10" y="12" width="20" height="12" rx="1" fill="none" stroke="#3B9EFF" stroke-width="1.5" opacity="0.6"/>
+      <circle cx="14" cy="10" r="1.5" fill="none" stroke="#3B9EFF" stroke-width="1.5" opacity="0.6"/>
+      <circle cx="20" cy="10" r="1.5" fill="none" stroke="#3B9EFF" stroke-width="1.5" opacity="0.6"/>
+      <circle cx="26" cy="10" r="1.5" fill="none" stroke="#3B9EFF" stroke-width="1.5" opacity="0.6"/>
     </g>
     <g id="magnifyingGlassGroup" transform="translate(25, 20)">
-      <circle id="glassLens" cx="0" cy="-12" r="6" fill="none" stroke="#0080FF" stroke-width="1.5" opacity="0.8"/>
-      <line id="glassHandle" x1="4" y1="-8" x2="8" y2="-4" stroke="#0080FF" stroke-width="1.2" opacity="0.8"/>
+      <circle id="glassLens" cx="0" cy="-12" r="6" fill="none" stroke="#3B9EFF" stroke-width="1.5" opacity="0.8"/>
+      <line id="glassHandle" x1="4" y1="-8" x2="8" y2="-4" stroke="#3B9EFF" stroke-width="1.2" opacity="0.8"/>
       <circle cx="0" cy="-12" r="5.5" fill="none" stroke="#22C55E" stroke-width="0.8" opacity="0.6" filter="url(#scanGlow)"/>
     </g>
   </svg>
@@ -1410,7 +1454,7 @@
     <div class="info-row" id="colorRow" onclick="toggleColorSheet()" style="cursor:pointer;">
       <span class="label">Color</span>
       <span class="value" id="colorValue">
-        <span class="color-dot" id="colorDot" style="background:#555"></span>
+        <span class="color-dot" id="colorDot" style="background:var(--muted2)"></span>
         <span id="colorLabel">Select color</span>
       </span>
       <button class="color-change-btn">Change ›</button>
@@ -1901,7 +1945,7 @@
     try {
       errorDiv.textContent = 'Searching...';
       errorDiv.style.display = 'block';
-      errorDiv.style.color = '#aaa';
+      errorDiv.style.color = 'var(--muted)';
 
       // Fetch part data
       const resp = await fetch(`/api/part/${partNum}`);
@@ -1927,7 +1971,7 @@
       showIdentifyScreen({ items: [item] });
     } catch (err) {
       errorDiv.textContent = `Error: ${err.message}`;
-      errorDiv.style.color = '#ff6b6b';
+      errorDiv.style.color = 'var(--red)';
       errorDiv.style.display = 'block';
     }
   }
@@ -1946,7 +1990,7 @@
     try {
       errorDiv.textContent = 'Searching...';
       errorDiv.style.display = 'block';
-      errorDiv.style.color = '#aaa';
+      errorDiv.style.color = 'var(--muted)';
 
       // Fetch minifig data via backend
       const resp = await fetch(`/api/minifig/${minifigId}`);
@@ -1972,7 +2016,7 @@
       showIdentifyScreen({ items: [item] });
     } catch (err) {
       errorDiv.textContent = `Error: ${err.message}`;
-      errorDiv.style.color = '#ff6b6b';
+      errorDiv.style.color = 'var(--red)';
       errorDiv.style.display = 'block';
     }
   }
@@ -1996,7 +2040,7 @@
         err.textContent = data.unavailable
           ? 'Offline catalog not available on this server.'
           : (data.error || 'Search failed');
-        err.style.color = '#ff6b6b';
+        err.style.color = 'var(--red)';
         err.style.display = 'block';
         return;
       }
@@ -2004,7 +2048,7 @@
     } catch (e) {
       res.style.display = 'none';
       err.textContent = 'Network error. Please try again.';
-      err.style.color = '#ff6b6b';
+      err.style.color = 'var(--red)';
       err.style.display = 'block';
     }
   }
@@ -2674,13 +2718,13 @@
 
       if (resp.ok && data.results && data.results.length > 0) {
         grid.innerHTML = data.results.map(item =>
-          `<div style="padding:10px;background:#222;border-radius:8px;border:1px solid #444;display:flex;justify-content:space-between;align-items:center;">
+          `<div style="padding:10px;background:var(--surface3);border-radius:8px;border:1px solid var(--border-bright);display:flex;justify-content:space-between;align-items:center;">
             <div>
               <div style="font-size:13px;color:#fff;">${item.list_name}</div>
-              <div style="font-size:11px;color:#aaa;">Qty: <span class="list-qty-${item.list_id}">${item.quantity}</span></div>
+              <div style="font-size:11px;color:var(--muted);">Qty: <span class="list-qty-${item.list_id}">${item.quantity}</span></div>
             </div>
             <div style="display:flex;gap:6px;">
-              <button onclick="quickAddPartToList(${item.list_id})" style="width:28px;height:28px;border:1px solid #444;background:#222;color:#0080FF;border-radius:6px;font-size:16px;cursor:pointer;font-weight:bold;">+</button>
+              <button onclick="quickAddPartToList(${item.list_id})" style="width:28px;height:28px;border:1px solid var(--border-bright);background:var(--surface3);color:#3B9EFF;border-radius:6px;font-size:16px;cursor:pointer;font-weight:bold;">+</button>
               <button onclick="quickRemovePartFromList(${item.list_id})" style="width:28px;height:28px;border:1px solid #f00;background:#3a1618;color:#ffb8bf;border-radius:6px;font-size:16px;cursor:pointer;font-weight:bold;">−</button>
             </div>
           </div>`
@@ -2774,21 +2818,21 @@
       document.getElementById('priceGrid').innerHTML = '';
       document.getElementById('setsSection').style.display = 'none';
       document.getElementById('setsList').innerHTML =
-        '<span style="color:#aaa;font-size:13px">Loading sets…</span>';
+        '<span style="color:var(--muted);font-size:13px">Loading sets…</span>';
       document.getElementById('setsSection').style.display = 'block';
 
       // Fetch price + sets in parallel
       const blId = items[0].bl_id;
       if (blId) {
         document.getElementById('priceGrid').innerHTML =
-          '<span style="color:#888;font-size:13px">Loading price…</span>';
+          '<span style="color:var(--muted);font-size:13px">Loading price…</span>';
         document.getElementById('priceSection').style.display = 'block';
         fetch(`/api/minifig_price/${blId}`)
           .then(r => r.json())
           .then(data => renderMinifigPrice(data))
           .catch(() => {
             document.getElementById('priceGrid').innerHTML =
-              '<span style="color:#888;font-size:13px">Price unavailable</span>';
+              '<span style="color:var(--muted);font-size:13px">Price unavailable</span>';
           });
       }
 
@@ -2833,7 +2877,7 @@
 
     document.getElementById('colorSheet').classList.add('open');
     document.getElementById('colorSwatches').innerHTML =
-      '<span style="color:#aaa;font-size:13px">Detecting color…</span>';
+      '<span style="color:var(--muted);font-size:13px">Detecting color…</span>';
 
     // Fetch part colors + detect color from image in parallel
     const [partColorsData, detectedRgb] = await Promise.all([
@@ -2926,7 +2970,7 @@
     qtyInput.type = 'number';
     populateCardInfo(item);
     document.getElementById('colorSwatches').innerHTML =
-      '<span style="color:#aaa;font-size:13px">Loading…</span>';
+      '<span style="color:var(--muted);font-size:13px">Loading…</span>';
 
     const partColorsData = await fetch(`/api/part_colors/${item.id}`)
       .then(r => r.json()).catch(() => ({ results: [] }));
@@ -3362,7 +3406,7 @@
     }
     gridEl.innerHTML = cards.length
       ? cards.join('')
-      : '<span style="color:#888;font-size:13px">Price unavailable</span>';
+      : '<span style="color:var(--muted);font-size:13px">Price unavailable</span>';
     if (sectionEl) sectionEl.style.display = 'block';
   }
 
@@ -3442,14 +3486,14 @@
         `https://cdn.rebrickable.com/media/parts/photos/${partNum}.jpg`;
 
       return `
-        <div class="parts-card" style="display:flex;width:100%;margin-bottom:8px;padding:12px;background:#1a1a1a;border:1px solid #444;border-radius:8px;gap:12px;align-items:flex-start;">
-          <div style="flex-shrink:0;width:70px;height:70px;background:#222;border-radius:4px;display:flex;align-items:center;justify-content:center;overflow:hidden;">
-            <img src="${partImgUrl}" alt="${partName}" style="max-width:100%;max-height:100%;object-fit:contain;" onerror="this.parentElement.style.background='#333'">
+        <div class="parts-card" style="display:flex;width:100%;margin-bottom:8px;padding:12px;background:var(--surface);border:1px solid var(--border-bright);border-radius:8px;gap:12px;align-items:flex-start;">
+          <div style="flex-shrink:0;width:70px;height:70px;background:var(--surface3);border-radius:4px;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+            <img src="${partImgUrl}" alt="${partName}" style="max-width:100%;max-height:100%;object-fit:contain;" onerror="this.parentElement.style.background='var(--surface3)'">
           </div>
           <div style="flex:1;min-width:0;">
             <div style="font-size:12px;font-weight:500;margin-bottom:4px;color:#fff;word-break:break-word;">${partName}</div>
-            <div style="font-size:11px;color:#aaa;margin-bottom:4px;">${partNum}</div>
-            <div style="font-size:11px;color:#0080FF;font-weight:500;">${colorName}</div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">${partNum}</div>
+            <div style="font-size:11px;color:#3B9EFF;font-weight:500;">${colorName}</div>
           </div>
         </div>`;
     }).join('');
@@ -3508,7 +3552,7 @@
     _listAllParts = [];
     wrap.style.display = 'none';
     document.getElementById('listSearchInput').value = '';
-    grid.innerHTML = '<p style="color:#aaa;text-align:center;padding:24px 0">Loading…</p>';
+    grid.innerHTML = '<p style="color:var(--muted);text-align:center;padding:24px 0">Loading…</p>';
     // Pull the whole list once (lightweight bulk endpoint) so search can filter
     // it instantly in memory. Thumbnails are lazy-loaded as rows scroll in.
     fetch(`/api/partlists/${listId}/parts_all`)
@@ -3537,7 +3581,7 @@
     const q = (filterStr || '').trim().toLowerCase();
 
     if (!_listAllParts.length) {
-      grid.innerHTML = '<p style="color:#aaa;text-align:center;padding:24px 0">No parts in this list.</p>';
+      grid.innerHTML = '<p style="color:var(--muted);text-align:center;padding:24px 0">No parts in this list.</p>';
       if (countEl) countEl.textContent = '';
       return;
     }
@@ -3558,7 +3602,7 @@
     }
 
     if (!parts.length) {
-      grid.innerHTML = `<p style="color:#aaa;text-align:center;padding:24px 0">No matches for “${escapeHtml(q)}”.</p>`;
+      grid.innerHTML = `<p style="color:var(--muted);text-align:center;padding:24px 0">No matches for “${escapeHtml(q)}”.</p>`;
       return;
     }
 
@@ -3578,8 +3622,8 @@
           <div class="part-item-sub">
             <span class="part-item-color-dot" style="background:#${rgb}"></span>
             <span>${colorName}</span>
-            <span style="color:#888;margin-left:4px;">•</span>
-            <a href="https://www.bricklink.com/v2/catalog/catalogitem.page?P=${partNum}" target="_blank" style="color:#0080FF;text-decoration:none;margin-left:4px;font-size:13px;">${partNum}</a>
+            <span style="color:var(--muted);margin-left:4px;">•</span>
+            <a href="https://www.bricklink.com/v2/catalog/catalogitem.page?P=${partNum}" target="_blank" style="color:#3B9EFF;text-decoration:none;margin-left:4px;font-size:13px;">${partNum}</a>
           </div>
         </div>
         <div class="part-item-actions">
@@ -3603,12 +3647,12 @@
   async function exportBricklink() {
     const listId = document.getElementById('listsViewSelect').value;
     const status = document.getElementById('blExportStatus');
-    if (!listId) { status.innerHTML = '<span style="color:#ff6b6b;">Select a list first.</span>'; return; }
+    if (!listId) { status.innerHTML = '<span style="color:var(--red);">Select a list first.</span>'; return; }
     status.textContent = 'Building BrickLink Wanted List…';
     try {
       const r = await fetch(`/api/partlists/${listId}/bricklink_wanted`);
       const d = await r.json();
-      if (!r.ok) { status.innerHTML = `<span style="color:#ff6b6b;">${escapeHtml(d.error || 'Export failed')}</span>`; return; }
+      if (!r.ok) { status.innerHTML = `<span style="color:var(--red);">${escapeHtml(d.error || 'Export failed')}</span>`; return; }
       status.textContent = '';
       document.getElementById('blExportXml').value = d.xml || '';
       let summary = `${d.item_count} item${d.item_count === 1 ? '' : 's'} · ${d.total_qty} pcs`;
@@ -3616,7 +3660,7 @@
       document.getElementById('blExportSummary').textContent = summary;
       document.getElementById('blExportModal').classList.add('active');
     } catch (e) {
-      status.innerHTML = '<span style="color:#ff6b6b;">Network error.</span>';
+      status.innerHTML = '<span style="color:var(--red);">Network error.</span>';
     }
   }
   function closeBlExport() { document.getElementById('blExportModal').classList.remove('active'); }
@@ -3642,12 +3686,12 @@
     const statusDiv = document.getElementById('csvStatus');
 
     if (!fileInput.files.length) {
-      statusDiv.innerHTML = '<span style="color:#ff6b6b;">Please select a CSV file</span>';
+      statusDiv.innerHTML = '<span style="color:var(--red);">Please select a CSV file</span>';
       return;
     }
 
     if (!listId) {
-      statusDiv.innerHTML = '<span style="color:#ff6b6b;">Please select a list first</span>';
+      statusDiv.innerHTML = '<span style="color:var(--red);">Please select a list first</span>';
       return;
     }
 
@@ -3655,7 +3699,7 @@
     formData.append('file', fileInput.files[0]);
     formData.append('list_id', listId);
 
-    statusDiv.innerHTML = '<span style="color:#0080FF;">Uploading and importing...</span>';
+    statusDiv.innerHTML = '<span style="color:#3B9EFF;">Uploading and importing...</span>';
 
     try {
       const resp = await fetch('/api/import-csv', {
@@ -3666,17 +3710,17 @@
       const data = await resp.json();
 
       if (!resp.ok) {
-        statusDiv.innerHTML = `<span style="color:#ff6b6b;">Error: ${escapeHtml(data.error || 'Unknown error')}</span>`;
+        statusDiv.innerHTML = `<span style="color:var(--red);">Error: ${escapeHtml(data.error || 'Unknown error')}</span>`;
         return;
       }
 
       // Show results
-      let msg = `<span style="color:#19a64a;">✓ Imported ${data.imported} parts</span>`;
+      let msg = `<span style="color:var(--green);">✓ Imported ${data.imported} parts</span>`;
       if (data.failed > 0) {
-        msg += `<br><span style="color:#ff6b6b;">⚠ Failed: ${data.failed}</span>`;
+        msg += `<br><span style="color:var(--red);">⚠ Failed: ${data.failed}</span>`;
       }
       if (data.errors.length > 0) {
-        msg += `<br><span style="color:#888;font-size:11px;">Errors: ${data.errors.slice(0, 3).join('; ')}</span>`;
+        msg += `<br><span style="color:var(--muted);font-size:11px;">Errors: ${data.errors.slice(0, 3).join('; ')}</span>`;
       }
       statusDiv.innerHTML = msg;
 
@@ -3688,7 +3732,7 @@
       }, 1500);
 
     } catch (err) {
-      statusDiv.innerHTML = `<span style="color:#ff6b6b;">Error: ${err.message}</span>`;
+      statusDiv.innerHTML = `<span style="color:var(--red);">Error: ${err.message}</span>`;
     }
   }
 
@@ -3707,7 +3751,7 @@
     const statusDiv = document.getElementById('shoppingStatus');
 
     if (!fileInput.files.length) {
-      statusDiv.innerHTML = '<span style="color:#ff6b6b;">Please select a CSV file</span>';
+      statusDiv.innerHTML = '<span style="color:var(--red);">Please select a CSV file</span>';
       return;
     }
 
@@ -3725,7 +3769,7 @@
         const qtyIdx = headers.indexOf('quantity');
 
         if (partNumIdx === -1) {
-          statusDiv.innerHTML = '<span style="color:#ff6b6b;">CSV must have "part_num" column</span>';
+          statusDiv.innerHTML = '<span style="color:var(--red);">CSV must have "part_num" column</span>';
           return;
         }
 
@@ -3820,11 +3864,11 @@
 
         saveShoppingList(shoppingList);
 
-        let msg = `<span style="color:#19a64a;">✓ Added ${imported} items</span>`;
+        let msg = `<span style="color:var(--green);">✓ Added ${imported} items</span>`;
         if (failed > 0) {
-          msg += `<br><span style="color:#ff6b6b;">⚠ Failed: ${failed}</span>`;
+          msg += `<br><span style="color:var(--red);">⚠ Failed: ${failed}</span>`;
           if (errors.length > 0) {
-            msg += `<details style="margin-top:8px;color:#aaa;"><summary style="cursor:pointer;color:#ff6b6b;">Show errors</summary><div style="margin-top:8px;max-height:200px;overflow-y:auto;background:#1a1a1a;padding:8px;border-radius:4px;font-size:12px;">`;
+            msg += `<details style="margin-top:8px;color:var(--muted);"><summary style="cursor:pointer;color:var(--red);">Show errors</summary><div style="margin-top:8px;max-height:200px;overflow-y:auto;background:var(--surface);padding:8px;border-radius:4px;font-size:12px;">`;
             errors.forEach(err => {
               msg += `<div style="margin:4px 0;">${err}</div>`;
             });
@@ -3840,7 +3884,7 @@
         }, 1500);
 
       } catch (err) {
-        statusDiv.innerHTML = `<span style="color:#ff6b6b;">Error: ${escapeHtml(err.message || 'Unknown error')}</span>`;
+        statusDiv.innerHTML = `<span style="color:var(--red);">Error: ${escapeHtml(err.message || 'Unknown error')}</span>`;
       }
     };
 
@@ -3853,12 +3897,12 @@
     const items = Object.values(list);
 
     if (items.length === 0) {
-      grid.innerHTML = '<p style="color:#888;text-align:center;padding:24px 0;">No items in shopping list. Upload a CSV to add parts.</p>';
+      grid.innerHTML = '<p style="color:var(--muted);text-align:center;padding:24px 0;">No items in shopping list. Upload a CSV to add parts.</p>';
       return;
     }
 
     // Show loading state
-    grid.innerHTML = '<p style="color:#888;text-align:center;padding:24px 0;">Loading part images...</p>';
+    grid.innerHTML = '<p style="color:var(--muted);text-align:center;padding:24px 0;">Loading part images...</p>';
 
     try {
       // Fetch part metadata for all items
@@ -3879,18 +3923,18 @@
       const html = items.map(item => {
         const img = partMetadata[item.part_num];
         return `
-          <div style="display:flex;gap:12px;padding:12px;background:#1a1a1a;border:1px solid #333;border-radius:8px;align-items:flex-start;">
-            ${img ? `<img src="${img}" alt="${item.part_num}" style="width:56px;height:56px;object-fit:contain;background:#222;border-radius:4px;flex-shrink:0;">` : `<div style="width:56px;height:56px;background:#222;border-radius:4px;flex-shrink:0;"></div>`}
+          <div style="display:flex;gap:12px;padding:12px;background:var(--surface);border:1px solid var(--border-bright);border-radius:8px;align-items:flex-start;">
+            ${img ? `<img src="${img}" alt="${item.part_num}" style="width:56px;height:56px;object-fit:contain;background:var(--surface3);border-radius:4px;flex-shrink:0;">` : `<div style="width:56px;height:56px;background:var(--surface3);border-radius:4px;flex-shrink:0;"></div>`}
             <div style="flex:1;min-width:0;">
-              <div style="font-weight:600;color:#0080FF;font-size:13px;">${item.part_num}</div>
-              <div style="font-size:12px;color:#888;">
+              <div style="font-weight:600;color:#3B9EFF;font-size:13px;">${item.part_num}</div>
+              <div style="font-size:12px;color:var(--muted);">
                 <span style="display:inline-block;width:12px;height:12px;background:#${getColorHex(item.color_name)};border-radius:2px;margin-right:6px;vertical-align:middle;"></span>
                 ${item.color_name}
               </div>
             </div>
             <div style="text-align:right;flex-shrink:0;">
               <div style="font-weight:600;color:#fff;font-size:16px;">${item.quantity}</div>
-              <div style="color:#888;font-size:11px;">qty</div>
+              <div style="color:var(--muted);font-size:11px;">qty</div>
             </div>
             <button onclick="removeShoppingItem('${item.part_num}_${item.color_id}')"
               style="padding:6px 10px;background:#3a1618;color:#ffb8bf;border:none;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;">✕</button>
@@ -3901,7 +3945,7 @@
       grid.innerHTML = html;
     } catch (err) {
       console.error('Error loading shopping list:', err);
-      grid.innerHTML = '<p style="color:#ff6b6b;">Error loading shopping list</p>';
+      grid.innerHTML = '<p style="color:var(--red);">Error loading shopping list</p>';
     }
   }
 
@@ -3916,7 +3960,7 @@
     if (confirm('Are you sure you want to delete all items in your shopping list? This cannot be undone.')) {
       saveShoppingList({});
       loadShoppingList();
-      document.getElementById('shoppingStatus').innerHTML = '<span style="color:#19a64a;">✓ Shopping list cleared</span>';
+      document.getElementById('shoppingStatus').innerHTML = '<span style="color:var(--green);">✓ Shopping list cleared</span>';
       setTimeout(() => {
         document.getElementById('shoppingStatus').innerHTML = '';
       }, 2000);
@@ -3941,16 +3985,16 @@
     if (view === 'list') {
       listView.style.display = 'block';
       compView.style.display = 'none';
-      listBtn.style.background = '#0080FF';
+      listBtn.style.background = '#3B9EFF';
       listBtn.style.color = '#fff';
-      compBtn.style.background = '#333';
-      compBtn.style.color = '#888';
+      compBtn.style.background = 'var(--surface3)';
+      compBtn.style.color = 'var(--muted)';
     } else {
       listView.style.display = 'none';
       compView.style.display = 'block';
-      listBtn.style.background = '#333';
-      listBtn.style.color = '#888';
-      compBtn.style.background = '#0080FF';
+      listBtn.style.background = 'var(--surface3)';
+      listBtn.style.color = 'var(--muted)';
+      compBtn.style.background = '#3B9EFF';
       compBtn.style.color = '#fff';
       loadComparisonView();
     }
@@ -3963,7 +4007,7 @@
 
     if (shoppingItems.length === 0) {
       comparisonGrid.innerHTML =
-        '<p style="color:#888;text-align:center;padding:24px 0;">No items in shopping list yet.</p>';
+        '<p style="color:var(--muted);text-align:center;padding:24px 0;">No items in shopping list yet.</p>';
       return;
     }
 
@@ -3987,7 +4031,7 @@
 
     // If not cached or cache expired, fetch fresh data
     if (!inventory) {
-      comparisonGrid.innerHTML = '<p style="color:#888;text-align:center;padding:24px 0;">Loading inventory...</p>';
+      comparisonGrid.innerHTML = '<p style="color:var(--muted);text-align:center;padding:24px 0;">Loading inventory...</p>';
 
       try {
         const partlistsResp = await fetch('/api/partlists');
@@ -3995,7 +4039,7 @@
         // Check for rate limit (429 Too Many Requests)
         if (partlistsResp.status === 429) {
           comparisonGrid.innerHTML =
-            '<p style="color:#ff8080;text-align:center;padding:24px 0;">⚠️ Rebrickable API rate limited. Please wait 1-2 hours and try again. <button onclick="loadComparisonView(true)" style="margin-top:12px;padding:8px 16px;background:#0080FF;color:#fff;border:none;border-radius:4px;cursor:pointer;">Retry</button></p>';
+            '<p style="color:var(--red);text-align:center;padding:24px 0;">⚠️ Rebrickable API rate limited. Please wait 1-2 hours and try again. <button onclick="loadComparisonView(true)" style="margin-top:12px;padding:8px 16px;background:#3B9EFF;color:#fff;border:none;border-radius:4px;cursor:pointer;">Retry</button></p>';
           return;
         }
 
@@ -4006,7 +4050,7 @@
         const inventoryList = partlists.find(list => list.name.toLowerCase() === "in inventory");
         if (!inventoryList) {
           comparisonGrid.innerHTML =
-            '<p style="color:#ff8080;text-align:center;padding:24px 0;">Error: "in inventory" list not found. Please create it in Rebrickable.</p>';
+            '<p style="color:var(--red);text-align:center;padding:24px 0;">Error: "in inventory" list not found. Please create it in Rebrickable.</p>';
           return;
         }
 
@@ -4019,7 +4063,7 @@
 
           if (resp.status === 429) {
             comparisonGrid.innerHTML =
-              '<p style="color:#ff8080;text-align:center;padding:24px 0;">⚠️ Rebrickable API rate limited. Please wait 1-2 hours and try again.</p>';
+              '<p style="color:var(--red);text-align:center;padding:24px 0;">⚠️ Rebrickable API rate limited. Please wait 1-2 hours and try again.</p>';
             return;
           }
 
@@ -4049,7 +4093,7 @@
         cacheAge = 0;
       } catch (err) {
         comparisonGrid.innerHTML =
-          `<p style="color:#ff8080;text-align:center;padding:24px 0;">Error loading inventory: ${err.message}</p>`;
+          `<p style="color:var(--red);text-align:center;padding:24px 0;">Error loading inventory: ${err.message}</p>`;
         return;
       }
     }
@@ -4076,35 +4120,35 @@
       rows.sort((a, b) => (a.gap > 0 ? -1 : 1) - (b.gap > 0 ? -1 : 1));
 
       const html = rows.map(row => {
-        const bgColor = row.isFull ? '#0a2a0a' : '#2a0a0a';
-        const textColor = row.isFull ? '#19a64a' : '#ff8080';
+        const bgColor = row.isFull ? 'var(--green-dim)' : 'var(--red-bg)';
+        const textColor = row.isFull ? 'var(--green)' : 'var(--red)';
         const statusText = row.isFull ? '✓ Complete' : `⚠ Need ${row.gap} more`;
 
         return `
           <div style="display:flex;gap:12px;padding:12px;background:${bgColor};border:1px solid ${row.isFull ? '#1a5a1a' : '#5a1a1a'};border-radius:8px;align-items:center;">
             <div style="flex:1;min-width:0;">
-              <div style="font-weight:600;color:#0080FF;font-size:13px;">${row.item.part_num}</div>
-              <div style="font-size:12px;color:#888;">
+              <div style="font-weight:600;color:#3B9EFF;font-size:13px;">${row.item.part_num}</div>
+              <div style="font-size:12px;color:var(--muted);">
                 <span style="display:inline-block;width:10px;height:10px;background:#${getColorHex(row.item.color_name)};border-radius:2px;margin-right:6px;vertical-align:middle;"></span>
                 ${row.item.color_name}
               </div>
             </div>
             <div style="text-align:right;flex-shrink:0;display:grid;grid-template-columns:auto auto auto;gap:16px;align-items:center;">
               <div style="font-size:12px;">
-                <div style="color:#888;font-size:11px;">Have</div>
+                <div style="color:var(--muted);font-size:11px;">Have</div>
                 <div style="color:#fff;font-weight:600;">${row.have}</div>
               </div>
               <div style="font-size:12px;">
-                <div style="color:#888;font-size:11px;">Need</div>
-                <div style="color:#0080FF;font-weight:600;">${row.need}</div>
+                <div style="color:var(--muted);font-size:11px;">Need</div>
+                <div style="color:#3B9EFF;font-weight:600;">${row.need}</div>
               </div>
               <div style="font-size:12px;">
-                <div style="color:#888;font-size:11px;">Gap</div>
+                <div style="color:var(--muted);font-size:11px;">Gap</div>
                 <div style="color:${textColor};font-weight:600;">${row.gap}</div>
               </div>
             </div>
             <button onclick="removeShoppingItem('${row.key}')"
-              style="padding:4px 8px;background:#333;color:#aaa;border:none;border-radius:4px;font-size:12px;cursor:pointer;">✕</button>
+              style="padding:4px 8px;background:var(--surface3);color:var(--muted);border:none;border-radius:4px;font-size:12px;cursor:pointer;">✕</button>
           </div>
         `;
       }).join('');
@@ -4114,10 +4158,10 @@
       const header = `
         <div style="margin-bottom:16px;padding:12px;background:#1a3a1a;border:1px solid #2a5a2a;border-radius:8px;">
           <div style="display:flex;justify-content:space-between;align-items:center;">
-            <div style="color:#888;font-size:13px;">
-              Inventory data: <span style="color:#19a64a;">${cacheText}</span> (cached for 30 min)
+            <div style="color:var(--muted);font-size:13px;">
+              Inventory data: <span style="color:var(--green);">${cacheText}</span> (cached for 30 min)
             </div>
-            <button onclick="loadComparisonView(true)" style="padding:6px 12px;background:#0080FF;color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer;">
+            <button onclick="loadComparisonView(true)" style="padding:6px 12px;background:#3B9EFF;color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer;">
               🔄 Refresh Now
             </button>
           </div>
@@ -4177,7 +4221,7 @@
         row?.remove();
         if (!document.querySelector('#listPartsGrid .part-item')) {
           document.getElementById('listPartsGrid').innerHTML =
-            '<p style="color:#aaa;text-align:center;padding:24px 0">No parts in this list.</p>';
+            '<p style="color:var(--muted);text-align:center;padding:24px 0">No parts in this list.</p>';
         }
       } else {
         if (mem) mem.quantity = qty;
@@ -4306,14 +4350,14 @@
         const msg = data.unavailable
           ? 'Offline catalog not available on this server.'
           : (data.error || 'Search failed');
-        resultsDiv.innerHTML = `<div style="padding:12px;color:#ff6b6b;font-size:13px;">${escapeHtml(msg)}</div>`;
+        resultsDiv.innerHTML = `<div style="padding:12px;color:var(--red);font-size:13px;">${escapeHtml(msg)}</div>`;
         resultsDiv.style.display = 'block';
         return;
       }
 
       const sets = data.results || [];
       if (sets.length === 0) {
-        resultsDiv.innerHTML = sourceBadge(data.source, 0) + `<div style="padding:12px;color:#aaa;font-size:13px;">No sets found</div>`;
+        resultsDiv.innerHTML = sourceBadge(data.source, 0) + `<div style="padding:12px;color:var(--muted);font-size:13px;">No sets found</div>`;
         resultsDiv.style.display = 'block';
         return;
       }
@@ -4329,14 +4373,14 @@
 
         html += `
           <div class="set-result" data-set-index="${idx}" data-set-num="${dataSetNum}" data-set-name="${dataSetName}" data-set-img="${imgUrl}"
-            style="display:flex;gap:10px;padding:10px;border-bottom:1px solid #333;cursor:pointer;transition:background 0.15s;"
-            onmouseover="this.style.background='#222'"
+            style="display:flex;gap:10px;padding:10px;border-bottom:1px solid var(--border-bright);cursor:pointer;transition:background 0.15s;"
+            onmouseover="this.style.background='var(--surface3)'"
             onmouseout="this.style.background='transparent'">
-            <img src="${imgUrl}" alt="${dataSetNum}" onerror="this.src='/static/brick.svg'" style="width:50px;height:50px;object-fit:contain;background:#0a0a0a;border-radius:4px;flex-shrink:0;">
+            <img src="${imgUrl}" alt="${dataSetNum}" onerror="this.src='/static/brick.svg'" style="width:50px;height:50px;object-fit:contain;background:var(--bg);border-radius:4px;flex-shrink:0;">
             <div style="flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;">
-              <div style="font-weight:600;color:#0080FF;font-size:14px;margin-bottom:2px;">${dataSetNum}</div>
+              <div style="font-weight:600;color:#3B9EFF;font-size:14px;margin-bottom:2px;">${dataSetNum}</div>
               <div style="color:#fff;font-size:13px;margin-bottom:4px;word-break:break-word;">${dataSetName}</div>
-              <div style="color:#888;font-size:12px;">
+              <div style="color:var(--muted);font-size:12px;">
                 ${displayYear}
                 ${displayParts}
               </div>
@@ -4358,7 +4402,7 @@
       });
     } catch (err) {
       console.error('Set search error:', err);
-      resultsDiv.innerHTML = `<div style="padding:12px;color:#ff6b6b;font-size:13px;">Network error. Please try again.</div>`;
+      resultsDiv.innerHTML = `<div style="padding:12px;color:var(--red);font-size:13px;">Network error. Please try again.</div>`;
       resultsDiv.style.display = 'block';
     }
   }
@@ -4381,7 +4425,7 @@
     document.getElementById('setDetailInfo').textContent = `Set ${setNum}`;
 
     // Clear previous content
-    document.getElementById('setDetailsContent').innerHTML = '<p style="color:#888;text-align:center;padding:20px;">Loading set inventory...</p>';
+    document.getElementById('setDetailsContent').innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px;">Loading set inventory...</p>';
 
     // Store current set for switching views
     window.currentSetNum = setNum;
@@ -4390,14 +4434,14 @@
     // BrickLink sold price (last 6 months, Used + New)
     const sps = document.getElementById('setPriceSection');
     document.getElementById('setPriceGrid').innerHTML =
-      '<span style="color:#888;font-size:13px">Loading price…</span>';
+      '<span style="color:var(--muted);font-size:13px">Loading price…</span>';
     sps.style.display = 'block';
     fetch(`/api/set_price/${encodeURIComponent(setNum)}`)
       .then(r => r.json())
       .then(d => _renderSoldPriceCards(d, document.getElementById('setPriceGrid'), sps))
       .catch(() => {
         document.getElementById('setPriceGrid').innerHTML =
-          '<span style="color:#888;font-size:13px">Price unavailable</span>';
+          '<span style="color:var(--muted);font-size:13px">Price unavailable</span>';
       });
 
     // Show parts view by default
@@ -4432,13 +4476,13 @@
     if (!setNum) return;
 
     // Update tab styling
-    document.getElementById('tabParts').style.background = '#0080FF';
+    document.getElementById('tabParts').style.background = '#3B9EFF';
     document.getElementById('tabParts').style.color = '#fff';
-    document.getElementById('tabMinifigs').style.background = '#333';
-    document.getElementById('tabMinifigs').style.color = '#888';
+    document.getElementById('tabMinifigs').style.background = 'var(--surface3)';
+    document.getElementById('tabMinifigs').style.color = 'var(--muted)';
 
     const contentDiv = document.getElementById('setDetailsContent');
-    contentDiv.innerHTML = '<p style="color:#888;text-align:center;padding:20px;">Loading parts...</p>';
+    contentDiv.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px;">Loading parts...</p>';
 
     try {
       const resp = await fetch(`/api/sets/${encodeURIComponent(setNum)}/parts`);
@@ -4446,7 +4490,7 @@
 
       const parts = data.results || [];
       if (parts.length === 0) {
-        contentDiv.innerHTML = '<p style="color:#888;text-align:center;padding:20px;">No parts found in this set</p>';
+        contentDiv.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px;">No parts found in this set</p>';
         return;
       }
 
@@ -4458,22 +4502,22 @@
         const partNum = part.part_num || 'N/A';
         const colorName = part.color_name || 'Unknown Color';
         const quantity = part.quantity || 1;
-        const colorHex = part.color_rgb ? '#' + part.color_rgb : '#888';
+        const colorHex = part.color_rgb ? '#' + part.color_rgb : 'var(--muted)';
 
         html += `
-          <div style="display:flex;gap:12px;padding:12px;border-bottom:1px solid #333;align-items:flex-start;">
-            <img data-src="${partImage}" alt="${partNum}" onclick="openImageModal('${partImage.replace(/'/g, "\\'")}', '${partNum.replace(/'/g, "\\'")}')" onerror="this.onerror=null;this.src='/static/brick.svg'" style="width:50px;height:50px;object-fit:contain;background:#222;border-radius:4px;flex-shrink:0;cursor:pointer;">
+          <div style="display:flex;gap:12px;padding:12px;border-bottom:1px solid var(--border-bright);align-items:flex-start;">
+            <img data-src="${partImage}" alt="${partNum}" onclick="openImageModal('${partImage.replace(/'/g, "\\'")}', '${partNum.replace(/'/g, "\\'")}')" onerror="this.onerror=null;this.src='/static/brick.svg'" style="width:50px;height:50px;object-fit:contain;background:var(--surface3);border-radius:4px;flex-shrink:0;cursor:pointer;">
             <div style="flex:1;min-width:0;">
-              <div style="font-weight:600;color:#0080FF;font-size:13px;margin-bottom:2px;">${partNum}</div>
+              <div style="font-weight:600;color:#3B9EFF;font-size:13px;margin-bottom:2px;">${partNum}</div>
               <div style="color:#fff;font-size:12px;margin-bottom:4px;word-break:break-word;">${partName}</div>
               <div style="display:flex;align-items:center;gap:6px;font-size:12px;">
-                <span style="width:16px;height:16px;border-radius:3px;background:${colorHex};border:1px solid #555;"></span>
-                <span style="color:#aaa;">${colorName}</span>
+                <span style="width:16px;height:16px;border-radius:3px;background:${colorHex};border:1px solid var(--border-bright);"></span>
+                <span style="color:var(--muted);">${colorName}</span>
               </div>
             </div>
             <div style="text-align:right;flex-shrink:0;">
               <div style="font-weight:600;color:#fff;font-size:14px;">${quantity}</div>
-              <div style="color:#888;font-size:11px;">qty</div>
+              <div style="color:var(--muted);font-size:11px;">qty</div>
             </div>
           </div>
         `;
@@ -4483,7 +4527,7 @@
       lazyLoadImages(contentDiv);
     } catch (err) {
       console.error('Error loading parts:', err);
-      contentDiv.innerHTML = '<p style="color:#ff6b6b;padding:20px;">Failed to load parts</p>';
+      contentDiv.innerHTML = '<p style="color:var(--red);padding:20px;">Failed to load parts</p>';
     }
   }
 
@@ -4492,13 +4536,13 @@
     if (!setNum) return;
 
     // Update tab styling
-    document.getElementById('tabParts').style.background = '#333';
-    document.getElementById('tabParts').style.color = '#888';
-    document.getElementById('tabMinifigs').style.background = '#0080FF';
+    document.getElementById('tabParts').style.background = 'var(--surface3)';
+    document.getElementById('tabParts').style.color = 'var(--muted)';
+    document.getElementById('tabMinifigs').style.background = '#3B9EFF';
     document.getElementById('tabMinifigs').style.color = '#fff';
 
     const contentDiv = document.getElementById('setDetailsContent');
-    contentDiv.innerHTML = '<p style="color:#888;text-align:center;padding:20px;">Loading minifigs...</p>';
+    contentDiv.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px;">Loading minifigs...</p>';
 
     try {
       const resp = await fetch(`/api/sets/${encodeURIComponent(setNum)}/minifigs`);
@@ -4506,7 +4550,7 @@
 
       const minifigs = data.results || [];
       if (minifigs.length === 0) {
-        contentDiv.innerHTML = '<p style="color:#888;text-align:center;padding:20px;">No minifigs in this set</p>';
+        contentDiv.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px;">No minifigs in this set</p>';
         return;
       }
 
@@ -4518,15 +4562,15 @@
         const quantity = fig.quantity || 1;
 
         html += `
-          <div style="display:flex;gap:12px;padding:12px;border-bottom:1px solid #333;align-items:flex-start;">
-            <img data-src="${figImage}" alt="${figNum}" onclick="openImageModal('${figImage.replace(/'/g, "\\'")}', '${figNum.replace(/'/g, "\\'")}', 'M')" onerror="this.onerror=null;this.src='/static/minifig.png'" style="width:50px;height:50px;object-fit:contain;background:#222;border-radius:4px;flex-shrink:0;cursor:pointer;">
+          <div style="display:flex;gap:12px;padding:12px;border-bottom:1px solid var(--border-bright);align-items:flex-start;">
+            <img data-src="${figImage}" alt="${figNum}" onclick="openImageModal('${figImage.replace(/'/g, "\\'")}', '${figNum.replace(/'/g, "\\'")}', 'M')" onerror="this.onerror=null;this.src='/static/minifig.png'" style="width:50px;height:50px;object-fit:contain;background:var(--surface3);border-radius:4px;flex-shrink:0;cursor:pointer;">
             <div style="flex:1;min-width:0;">
-              <div style="font-weight:600;color:#0080FF;font-size:13px;margin-bottom:2px;">${figNum}</div>
+              <div style="font-weight:600;color:#3B9EFF;font-size:13px;margin-bottom:2px;">${figNum}</div>
               <div style="color:#fff;font-size:12px;word-break:break-word;">${figName}</div>
             </div>
             <div style="text-align:right;flex-shrink:0;">
               <div style="font-weight:600;color:#fff;font-size:14px;">${quantity}</div>
-              <div style="color:#888;font-size:11px;">qty</div>
+              <div style="color:var(--muted);font-size:11px;">qty</div>
             </div>
           </div>
         `;
@@ -4536,14 +4580,14 @@
       lazyLoadImages(contentDiv);
     } catch (err) {
       console.error('Error loading minifigs:', err);
-      contentDiv.innerHTML = '<p style="color:#ff6b6b;padding:20px;">Failed to load minifigs</p>';
+      contentDiv.innerHTML = '<p style="color:var(--red);padding:20px;">Failed to load minifigs</p>';
     }
   }
 
   function showToast(message) {
     // Create a simple toast notification
     const toast = document.createElement('div');
-    toast.style.cssText = 'position:fixed;bottom:20px;left:20px;right:20px;background:#0080FF;color:#fff;padding:12px 16px;border-radius:8px;font-size:14px;z-index:1000;box-shadow:0 2px 8px rgba(0,0,0,0.3);';
+    toast.style.cssText = 'position:fixed;bottom:20px;left:20px;right:20px;background:#3B9EFF;color:#fff;padding:12px 16px;border-radius:8px;font-size:14px;z-index:1000;box-shadow:0 2px 8px rgba(0,0,0,0.3);';
     toast.textContent = message;
     document.body.appendChild(toast);
 
