@@ -4037,7 +4037,7 @@
           const partNum = p.part?.part_num || '';
           const colorId = p.color?.id ?? '';
           return `<div class="part-item" data-part-num="${partNum}" data-color-id="${colorId}">
-            ${img ? `<img src="${img}" onclick="openImageModal('${img.replace(/'/g, "\\'")}', '${partNum.replace(/'/g, "\\'")}')" onerror="this.style.display='none'" loading="lazy">` :
+            ${img ? `<img src="${img}" onclick="openImageModal('${img.replace(/'/g, "\\'")}', '${partNum.replace(/'/g, "\\'")}')" onerror="this.onerror=null;this.src='/static/brick.svg'">` :
                     `<div style="width:56px;height:56px;border-radius:8px;background:#f0f0f0;flex-shrink:0"></div>`}
             <div class="part-item-info">
               <div class="part-item-name">${name}</div>
