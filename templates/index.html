@@ -802,6 +802,13 @@
     .voice-cancel { background: var(--surface3); color: var(--muted); }
     .voice-go { background: var(--yellow); color: #fff; border-color: var(--yellow); }
     .voice-error { font-size: 13px; color: #FCA5A5; text-align: center; }
+    .voice-quick {
+      display: flex; align-items: center; gap: 8px; width: 100%;
+      justify-content: center; font-size: 13px; color: var(--muted);
+      cursor: pointer; user-select: none;
+    }
+    .voice-quick input { width: 16px; height: 16px; accent-color: var(--yellow); }
+    .voice-quick.on { color: var(--text); }
     .bl-match-note {
       padding: 9px 12px; font-size: 12px; line-height: 1.5; color: var(--muted);
       background: var(--surface3); border-bottom: 1px solid var(--border);
@@ -840,6 +847,17 @@
 
     /* ── Misc inline styles replacement ── */
     .lists-view-header { padding: 14px 14px 8px; }
+    .list-search-wrap { padding: 0 14px 10px; }
+    .list-search-input {
+      width: 100%; padding: 11px 12px; background: var(--surface3); color: var(--text);
+      border: 1px solid var(--border-bright); border-radius: var(--radius-sm); font-size: 14px;
+      font-family: var(--font-body);
+    }
+    .list-search-input::placeholder { color: var(--muted); }
+    .list-search-count {
+      font-family: var(--font-display); font-size: 11px; color: var(--muted);
+      margin-top: 6px; text-transform: uppercase; letter-spacing: 0.6px;
+    }
     .lists-import-section {
       padding: 14px; border-bottom: 1px solid var(--border);
     }
@@ -1123,6 +1141,14 @@
     </select>
   </div>
 
+  <div id="listSearchWrap" class="list-search-wrap" style="display:none;">
+    <input id="listSearchInput" type="text" class="list-search-input"
+      placeholder="Search this list — part #, name, or color"
+      autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+      oninput="filterListParts()">
+    <div id="listSearchCount" class="list-search-count"></div>
+  </div>
+
   <div class="lists-import-section">
     <div class="sub-label">Import CSV</div>
     <div class="file-input-row">
@@ -1140,9 +1166,7 @@
 
   <div id="listsError" class="list-msg"></div>
   <div id="listPartsGrid" style="padding:0 14px 24px;"></div>
-  <div id="listLoadMore" style="display:none;text-align:center;padding:0 14px 24px;">
-    <button onclick="loadMoreListParts()" class="btn" style="max-width:200px;">Load More</button>
-  </div>
+  <div id="listLoadMore" style="display:none;"></div>
 </div>
 
 <!-- Screen: Shopping List -->
@@ -3454,7 +3478,7 @@
   }
 
   // ── Lists browser ──────────────────────────────────────────────────────
-  let _listPage = 1, _listTotal = 0, _listLoaded = 0;
+  let _listAllParts = [];  // full parts list held in memory for live search
 
   function populateListsViewSelect() {
     fetch('/api/partlists').then(r => r.json()).then(data => {
@@ -3477,18 +3501,102 @@
 
   function loadListContents() {
     const listId = document.getElementById('listsViewSelect').value;
-    if (!listId) { document.getElementById('listPartsGrid').innerHTML = ''; return; }
-    _listPage = 1; _listLoaded = 0;
-    document.getElementById('listPartsGrid').innerHTML =
-      '<p style="color:#aaa;text-align:center;padding:24px 0">Loading…</p>';
+    const grid = document.getElementById('listPartsGrid');
+    const wrap = document.getElementById('listSearchWrap');
     document.getElementById('listLoadMore').style.display = 'none';
-    fetchListPage(listId, 1, true);
+    if (!listId) { grid.innerHTML = ''; _listAllParts = []; wrap.style.display = 'none'; return; }
+    _listAllParts = [];
+    wrap.style.display = 'none';
+    document.getElementById('listSearchInput').value = '';
+    grid.innerHTML = '<p style="color:#aaa;text-align:center;padding:24px 0">Loading…</p>';
+    // Pull the whole list once (lightweight bulk endpoint) so search can filter
+    // it instantly in memory. Thumbnails are lazy-loaded as rows scroll in.
+    fetch(`/api/partlists/${listId}/parts_all`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) {
+          grid.innerHTML = '<p style="color:#c00;text-align:center;padding:24px 0">Failed to load.</p>';
+          return;
+        }
+        _listAllParts = data.results || [];
+        wrap.style.display = _listAllParts.length ? 'block' : 'none';
+        renderListParts('');
+      })
+      .catch(() => {
+        grid.innerHTML = '<p style="color:#c00;text-align:center;padding:24px 0">Failed to load.</p>';
+      });
   }
 
-  function loadMoreListParts() {
-    const listId = document.getElementById('listsViewSelect').value;
-    if (!listId) return;
-    fetchListPage(listId, ++_listPage, false);
+  function filterListParts() {
+    renderListParts(document.getElementById('listSearchInput').value);
+  }
+
+  function renderListParts(filterStr) {
+    const grid = document.getElementById('listPartsGrid');
+    const countEl = document.getElementById('listSearchCount');
+    const q = (filterStr || '').trim().toLowerCase();
+
+    if (!_listAllParts.length) {
+      grid.innerHTML = '<p style="color:#aaa;text-align:center;padding:24px 0">No parts in this list.</p>';
+      if (countEl) countEl.textContent = '';
+      return;
+    }
+
+    let parts = _listAllParts;
+    if (q) {
+      parts = parts.filter(p =>
+        (p.part_num || '').toLowerCase().includes(q) ||
+        (p.name || '').toLowerCase().includes(q) ||
+        (p.color_name || '').toLowerCase().includes(q)
+      );
+    }
+
+    if (countEl) {
+      countEl.textContent = q
+        ? `${parts.length} of ${_listAllParts.length} parts`
+        : `${_listAllParts.length} parts`;
+    }
+
+    if (!parts.length) {
+      grid.innerHTML = `<p style="color:#aaa;text-align:center;padding:24px 0">No matches for “${escapeHtml(q)}”.</p>`;
+      return;
+    }
+
+    const html = parts.map(p => {
+      const img = p.img_url || '';
+      const name = p.name || p.part_num || '?';
+      const rgb = p.rgb || 'ccc';
+      const colorName = p.color_name || '';
+      const qty = p.quantity || 1;
+      const partNum = p.part_num || '';
+      const colorId = p.color_id ?? '';
+      return `<div class="part-item" data-part-num="${partNum}" data-color-id="${colorId}">
+        ${img ? `<img data-src="${img}" onclick="openImageModal('${img.replace(/'/g, "\\'")}', '${partNum.replace(/'/g, "\\'")}')" onerror="this.onerror=null;this.src='/static/brick.svg'">` :
+                `<div style="width:56px;height:56px;border-radius:8px;background:#f0f0f0;flex-shrink:0"></div>`}
+        <div class="part-item-info">
+          <div class="part-item-name">${name}</div>
+          <div class="part-item-sub">
+            <span class="part-item-color-dot" style="background:#${rgb}"></span>
+            <span>${colorName}</span>
+            <span style="color:#888;margin-left:4px;">•</span>
+            <a href="https://www.bricklink.com/v2/catalog/catalogitem.page?P=${partNum}" target="_blank" style="color:#0080FF;text-decoration:none;margin-left:4px;font-size:13px;">${partNum}</a>
+          </div>
+        </div>
+        <div class="part-item-actions">
+          <button class="list-adjust-btn remove"
+            title="Remove one"
+            aria-label="Remove one ${name.replace(/"/g, '&quot;')}"
+            onclick="adjustListPart(event, -1, '${partNum.replace(/'/g, "\\'")}', '${colorId}')">−</button>
+          <div class="part-item-qty">×${qty}</div>
+          <button class="list-adjust-btn add"
+            title="Add one"
+            aria-label="Add one ${name.replace(/"/g, '&quot;')}"
+            onclick="adjustListPart(event, 1, '${partNum.replace(/'/g, "\\'")}', '${colorId}')">+</button>
+        </div>
+      </div>`;
+    }).join('');
+    grid.innerHTML = html;
+    lazyLoadImages(grid);
   }
 
   // ── Export a parts list as a BrickLink Wanted List (XML upload format) ──
@@ -4019,60 +4127,6 @@
       document.getElementById('comparisonGrid').innerHTML = header + html;
   }
 
-  function fetchListPage(listId, page, replace) {
-    const listErr = document.getElementById('listsError');
-    listErr.style.display = 'none';
-    fetch(`/api/partlists/${listId}/parts?page=${page}`)
-      .then(r => r.json())
-      .then(data => {
-        _listTotal = data.count || 0;
-        const parts = data.results || [];
-        _listLoaded += parts.length;
-        const html = parts.map(p => {
-          const img = p._accurate_img_url || p.part?.part_img_url || '';
-          const name = p.part?.name || p.part?.part_num || '?';
-          const rgb = p.color?.rgb || 'ccc';
-          const colorName = p.color?.name || '';
-          const qty = p.quantity || 1;
-          const partNum = p.part?.part_num || '';
-          const colorId = p.color?.id ?? '';
-          return `<div class="part-item" data-part-num="${partNum}" data-color-id="${colorId}">
-            ${img ? `<img src="${img}" onclick="openImageModal('${img.replace(/'/g, "\\'")}', '${partNum.replace(/'/g, "\\'")}')" onerror="this.onerror=null;this.src='/static/brick.svg'">` :
-                    `<div style="width:56px;height:56px;border-radius:8px;background:#f0f0f0;flex-shrink:0"></div>`}
-            <div class="part-item-info">
-              <div class="part-item-name">${name}</div>
-              <div class="part-item-sub">
-                <span class="part-item-color-dot" style="background:#${rgb}"></span>
-                <span>${colorName}</span>
-                <span style="color:#888;margin-left:4px;">•</span>
-                <a href="https://www.bricklink.com/v2/catalog/catalogitem.page?P=${partNum}" target="_blank" style="color:#0080FF;text-decoration:none;margin-left:4px;font-size:13px;">${partNum}</a>
-              </div>
-            </div>
-            <div class="part-item-actions">
-              <button class="list-adjust-btn remove"
-                title="Remove one"
-                aria-label="Remove one ${name.replace(/"/g, '&quot;')}"
-                onclick="adjustListPart(event, -1, '${partNum.replace(/'/g, "\\'")}', '${colorId}')">−</button>
-              <div class="part-item-qty">×${qty}</div>
-              <button class="list-adjust-btn add"
-                title="Add one"
-                aria-label="Add one ${name.replace(/"/g, '&quot;')}"
-                onclick="adjustListPart(event, 1, '${partNum.replace(/'/g, "\\'")}', '${colorId}')">+</button>
-            </div>
-          </div>`;
-        }).join('');
-        const grid = document.getElementById('listPartsGrid');
-        if (replace) grid.innerHTML = html;
-        else grid.insertAdjacentHTML('beforeend', html);
-        const lm = document.getElementById('listLoadMore');
-        lm.style.display = _listLoaded < _listTotal ? 'block' : 'none';
-      })
-      .catch(() => {
-        if (replace) document.getElementById('listPartsGrid').innerHTML =
-          '<p style="color:#c00;text-align:center;padding:24px 0">Failed to load.</p>';
-      });
-  }
-
   function adjustListPart(event, delta, partNum, colorId) {
     event.stopPropagation();
     const btn = event.currentTarget;
@@ -4116,19 +4170,27 @@
 
       const previousQty = parseInt(qtyEl?.textContent.replace(/[^\d]/g, '')) || 0;
       const qty = delta > 0 ? previousQty + 1 : (parseInt(data.quantity) || 0);
+      // Keep the in-memory list (used by search) in sync with the change.
+      const mem = _listAllParts.find(p => p.part_num === partNum && String(p.color_id) === String(colorId));
       if (qty <= 0) {
+        if (mem) _listAllParts.splice(_listAllParts.indexOf(mem), 1);
         row?.remove();
-        _listLoaded = Math.max(0, _listLoaded - 1);
-        _listTotal = Math.max(0, _listTotal - 1);
         if (!document.querySelector('#listPartsGrid .part-item')) {
           document.getElementById('listPartsGrid').innerHTML =
             '<p style="color:#aaa;text-align:center;padding:24px 0">No parts in this list.</p>';
         }
       } else {
+        if (mem) mem.quantity = qty;
         if (qtyEl) qtyEl.textContent = `×${qty}`;
         actionBtns.forEach(b => { b.disabled = false; });
         btn.textContent = originalText;
       }
+      // Refresh the search count line.
+      const countEl = document.getElementById('listSearchCount');
+      const sv = (document.getElementById('listSearchInput').value || '').trim();
+      if (countEl) countEl.textContent = sv
+        ? `${document.querySelectorAll('#listPartsGrid .part-item').length} of ${_listAllParts.length} parts`
+        : `${_listAllParts.length} parts`;
       loadPartlists(parseInt(listId));
     })
     .catch(() => {
@@ -4514,6 +4576,16 @@
   const _SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   const _voiceMicSupported = !!_SR && window.isSecureContext;
   let _recognition = null, _voiceListening = false;
+  // Quick-add mode: add spoken parts straight to the selected list (no confirm
+  // card). Persisted so it sticks between sessions.
+  let _voiceQuickAdd = false;
+  try { _voiceQuickAdd = localStorage.getItem('voiceQuickAdd') === '1'; } catch (e) {}
+  function setVoiceQuick(on) {
+    _voiceQuickAdd = !!on;
+    try { localStorage.setItem('voiceQuickAdd', _voiceQuickAdd ? '1' : '0'); } catch (e) {}
+    document.getElementById('voiceQuickRow').classList.toggle('on', _voiceQuickAdd);
+    document.getElementById('voiceGoBtn').textContent = _voiceQuickAdd ? 'Add' : 'Find part';
+  }
   const _numWords = { zero:0, one:1, two:2, three:3, four:4, five:5, six:6, seven:7,
     eight:8, nine:9, ten:10, eleven:11, twelve:12, thirteen:13, fourteen:14, fifteen:15,
     sixteen:16, seventeen:17, eighteen:18, nineteen:19, twenty:20, a:1, an:1 };
@@ -4533,6 +4605,8 @@
   function openVoiceAdd() {
     document.getElementById('voiceText').value = '';
     document.getElementById('voiceError').style.display = 'none';
+    document.getElementById('voiceQuickToggle').checked = _voiceQuickAdd;
+    setVoiceQuick(_voiceQuickAdd);
     const micBtn = document.getElementById('voiceMicBtn');
     micBtn.style.display = _voiceMicSupported ? 'flex' : 'none';
     setVoiceStatus(_voiceMicSupported
@@ -4661,6 +4735,49 @@
       showVoiceError(`No part found for "${parsed.partNum}". Check the number and try again.`);
       return;
     }
+
+    // Quick-add: add straight to the selected list with no confirm card — but
+    // only when we have everything (a chosen list + a spoken colour). If either
+    // is missing we fall back to the confirm card so the user can fill the gap.
+    if (_voiceQuickAdd) {
+      const listId = document.getElementById('listSelect').value;
+      if (!listId) {
+        showVoiceError('Quick add needs a list — pick one at the top of the scan screen first.');
+        return;
+      }
+      if (parsed.color) {
+        try {
+          const resp = await fetch('/api/add_part', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ list_id: listId, part_num: hit.part_num, color_id: parsed.color.id, quantity: parsed.qty })
+          });
+          const data = await resp.json();
+          if (!resp.ok) {
+            showVoiceError(`Error: ${data.non_field_errors?.[0] || data.detail || 'could not add part'}`);
+            return;
+          }
+          const label = hit.name || hit.part_num;
+          setVoiceStatus(`✓ ${parsed.qty}× ${label} (${parsed.color.name}) added`);
+          showToast(`Added ${parsed.qty}× ${label} (${parsed.color.name})`);
+          document.getElementById('voiceText').value = '';
+          // Ready for the next part — re-arm the mic, or refocus the text box.
+          if (_voiceMicSupported) {
+            setTimeout(() => {
+              if (document.getElementById('voiceModal').classList.contains('active') && !_voiceListening) toggleVoiceListen();
+            }, 800);
+          } else {
+            setTimeout(() => document.getElementById('voiceText').focus(), 100);
+          }
+          return;
+        } catch (e) {
+          showVoiceError('Network error adding the part.');
+          return;
+        }
+      }
+      // No colour heard — drop to the confirm card so the user can pick one.
+      setVoiceStatus('No colour heard — opening confirm card to pick one.');
+    }
+
     closeVoiceAdd();
     // Open the identify screen as the confirm card, then pre-fill colour + qty.
     await openPartFromSearch(hit.part_num, hit.name, hit.img_url);
@@ -4709,9 +4826,13 @@
       placeholder="e.g. 3068b dark green 2"
       autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
       onkeydown="if(event.key==='Enter')submitVoiceText()">
+    <label class="voice-quick" id="voiceQuickRow">
+      <input type="checkbox" id="voiceQuickToggle" onchange="setVoiceQuick(this.checked)">
+      <span>⚡ Quick add — skip the confirm card</span>
+    </label>
     <div class="voice-actions">
-      <button class="voice-cancel" onclick="closeVoiceAdd()">Cancel</button>
-      <button class="voice-go" onclick="submitVoiceText()">Find part</button>
+      <button class="voice-cancel" onclick="closeVoiceAdd()">Done</button>
+      <button class="voice-go" id="voiceGoBtn" onclick="submitVoiceText()">Find part</button>
     </div>
     <div id="voiceError" class="voice-error" style="display:none;"></div>
   </div>

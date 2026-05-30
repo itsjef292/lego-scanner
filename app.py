@@ -880,6 +880,47 @@ def get_partlist_parts(list_id):
     return jsonify(data), resp.status_code
 
 
+@app.route("/api/partlists/<int:list_id>/parts_all")
+def get_partlist_parts_all(list_id):
+    """Flat, lightweight dump of an ENTIRE parts list for client-side search.
+
+    Pages through Rebrickable (throttled via rebrickable_get) and returns every
+    entry without the per-part color-specific image lookup — it uses the generic
+    part_img_url already in each response, so loading the whole list stays cheap
+    (just the paged list calls, no fan-out). Powers the live search box in the
+    Lists view, where the full set must be in memory to filter as the user types.
+    """
+    out = []
+    page = 1
+    while page <= 200:  # safety cap (~20k parts at page_size 100)
+        resp = rebrickable_get(
+            f"/users/{USER_TOKEN}/partlists/{list_id}/parts/",
+            params={"key": API_KEY, "page_size": 100, "page": page},
+        )
+        if resp is None or resp.status_code != 200:
+            if page == 1:
+                return jsonify({"error": "Couldn't fetch list parts", "results": []}), \
+                    (resp.status_code if resp is not None else 502)
+            break  # partial list is better than none
+        data = resp.json()
+        for it in data.get("results", []):
+            part = it.get("part") or {}
+            color = it.get("color") or {}
+            out.append({
+                "part_num": part.get("part_num"),
+                "name": part.get("name"),
+                "img_url": part.get("part_img_url"),
+                "color_id": color.get("id"),
+                "color_name": color.get("name"),
+                "rgb": color.get("rgb"),
+                "quantity": it.get("quantity") or 1,
+            })
+        if not data.get("next"):
+            break
+        page += 1
+    return jsonify({"results": out, "count": len(out)})
+
+
 def _rb_part_to_bl(conn, part_num):
     """Rebrickable part_num → BrickLink item id (reverse of bl_aliases). Falls
     back to the part_num itself (identical for most standard parts)."""
