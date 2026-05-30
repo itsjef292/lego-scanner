@@ -284,6 +284,39 @@ def _local_part_colors(part_num):
         conn.close()
 
 
+def _local_part_color_imgs(conn, pairs):
+    """Look up color-specific part images from the local catalog in one query.
+
+    `pairs` is an iterable of (part_num, color_id). Returns {(part_num, color_id):
+    img_url} for the combos that have a color-specific image in `part_colors`
+    (derived at build time from the bulk dump's inventory_parts.img_url — ~94%
+    coverage, zero API calls). Combos with no local image are simply absent.
+    """
+    out = {}
+    if conn is None:
+        return out
+    seen = {(pn, int(cid)) for pn, cid in pairs if pn and cid is not None}
+    if not seen:
+        return out
+    try:
+        # Chunk to stay under SQLite's variable limit; the PK index makes each
+        # (part_num, color_id) lookup a direct hit.
+        items = list(seen)
+        for i in range(0, len(items), 400):
+            chunk = items[i:i + 400]
+            clause = " OR ".join("(part_num = ? AND color_id = ?)" for _ in chunk)
+            params = [v for pair in chunk for v in pair]
+            for row in conn.execute(
+                f"SELECT part_num, color_id, img_url FROM part_colors "
+                f"WHERE ({clause}) AND img_url IS NOT NULL AND img_url != ''",
+                params,
+            ):
+                out[(row["part_num"], int(row["color_id"]))] = row["img_url"]
+    except sqlite3.OperationalError:
+        pass
+    return out
+
+
 def _local_minifig_sets(fig_num):
     """Sets that contain a minifig, from the local catalog.
     Returns a list shaped like Rebrickable's /minifigs/<f>/sets/ results, or None.
@@ -884,11 +917,13 @@ def get_partlist_parts(list_id):
 def get_partlist_parts_all(list_id):
     """Flat, lightweight dump of an ENTIRE parts list for client-side search.
 
-    Pages through Rebrickable (throttled via rebrickable_get) and returns every
-    entry without the per-part color-specific image lookup — it uses the generic
-    part_img_url already in each response, so loading the whole list stays cheap
-    (just the paged list calls, no fan-out). Powers the live search box in the
-    Lists view, where the full set must be in memory to filter as the user types.
+    Pages through Rebrickable (throttled via rebrickable_get). For each entry the
+    color-specific image is pulled from the local catalog (`part_colors`, ~94%
+    coverage, zero API calls), falling back to the generic part_img_url when the
+    combo has no local image. Loading the whole list stays cheap — just the paged
+    list calls plus a couple of batched local lookups, no per-part API fan-out.
+    Powers the live search box in the Lists view, where the full set must be in
+    memory to filter as the user types.
     """
     out = []
     page = 1
@@ -909,7 +944,7 @@ def get_partlist_parts_all(list_id):
             out.append({
                 "part_num": part.get("part_num"),
                 "name": part.get("name"),
-                "img_url": part.get("part_img_url"),
+                "img_url": part.get("part_img_url"),  # generic fallback
                 "color_id": color.get("id"),
                 "color_name": color.get("name"),
                 "rgb": color.get("rgb"),
@@ -918,6 +953,21 @@ def get_partlist_parts_all(list_id):
         if not data.get("next"):
             break
         page += 1
+
+    # Overlay color-specific images from the local catalog (one batched query).
+    conn = local_db()
+    if conn is not None:
+        try:
+            imgs = _local_part_color_imgs(conn, [(p["part_num"], p["color_id"]) for p in out])
+            for p in out:
+                if p["color_id"] is None:
+                    continue
+                local_img = imgs.get((p["part_num"], int(p["color_id"])))
+                if local_img:
+                    p["img_url"] = local_img
+        finally:
+            conn.close()
+
     return jsonify({"results": out, "count": len(out)})
 
 
