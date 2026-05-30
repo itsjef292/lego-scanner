@@ -52,11 +52,12 @@ One accent (azure). Green/red are semantic only. Never decorate with colour.
 
 ## Typography
 
-- **Space Grotesk** (`--font-display` / `--font-body`) — UI + headings. Geometric
-  but slightly quirky = precise yet playful.
+- **Inter** (`--font-display` / `--font-body`) — UI + headings. Clean, neutral,
+  high-legibility (Porsche-Next-like). Personality stays out of the way so the
+  brick photos and colours lead.
 - **Space Mono** (`--font-mono`) — **catalog data only**: part numbers, element/
-  colour ids, quantities (`×N`), prices, sizes, dates. Shared design DNA with
-  Space Grotesk. If it's a number from the catalog, it's mono.
+  colour ids, quantities (`×N`), prices, sizes, dates. If it's a number from the
+  catalog, it's mono. (Provides a deliberate "machine-readable" contrast to Inter.)
 
 ## Spacing & Radius
 
