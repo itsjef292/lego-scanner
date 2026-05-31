@@ -19,3 +19,9 @@ catalog_refresh.launchd.log
 
 # Flask app log (launchd autostart agent, local dev only)
 app.log
+
+# Owned-set purchase metadata + local minifig collection (local dev only)
+.set_meta.json
+.set_meta.json.tmp
+.minifig_collection.json
+.minifig_collection.json.tmp

@@ -153,19 +153,27 @@ Flask server with 10+ endpoints:
 - `POST /api/remove_part_one` — Decrement part quantity by 1 (delete if qty becomes 0)
 - `GET /api/partlists/<id>/bricklink_wanted` — Export a parts list as BrickLink Wanted List XML (part_num→BrickLink id via `bl_aliases`, color→BrickLink color via `bl_colors`)
 
-**Minifig Management:**
-- `GET /api/minifiglists` — Fetch minifig lists
-- `POST /api/minifiglists` — Create minifig list
+**Minifig info:**
 - `GET /api/minifig_sets/<set_num>` — Get sets containing a minifig
-- `POST /api/add_minifig` — Add minifig to list
 - `GET /api/minifig_price/<fig_id>` — BrickLink last-6-months sold price, Used + New (OAuth1; via `_bl_sold_price`) + theme category
 - `GET /api/set_price/<set_num>` — BrickLink last-6-months sold price for a set, Used + New (`_bl_sold_price("SET", …)`; bare set numbers default to `-1`)
+- `GET/POST /api/minifiglists` — legacy synthetic single-list shim (Rebrickable has no minifig lists); largely vestigial now that the collection is local.
 
-**Owned Sets ("My Sets" collection — the user's Rebrickable set collection at `/users/{token}/sets/`):**
-- `GET /api/owned_sets` — list every owned set (set_num, name, year, num_parts, img, quantity)
-- `GET /api/owned_sets/<set_num>` — `{owned, quantity}` for one set
+**Owned Sets ("My Sets" — the user's Rebrickable set collection at `/users/{token}/sets/`):**
+- `GET /api/owned_sets` — list every owned set (set_num, name, year, num_parts, img, quantity, condition, price_paid)
+- `GET /api/owned_sets/<set_num>` — `{owned, quantity, condition, price_paid}` for one set
 - `POST /api/add_set` — add a set (merges quantity if already owned)
-- `POST /api/remove_set_one` — decrement an owned set by 1 (deletes the entry at 0)
+- `POST /api/remove_set_one` — decrement an owned set by 1 (deletes the entry + its metadata at 0)
+- `POST /api/owned_sets/<set_num>/meta` — save purchase **condition** (`used`/`new`) + **price_paid**. Stored in local `.set_meta.json` (Rebrickable's set collection only holds quantity). LOCAL-ONLY — empty on Render.
+
+**Owned Minifigs ("My Minifigs") — a fully LOCAL collection:**
+Rebrickable's `/users/{token}/minifigs/` is **read-only** (GET-only, no per-item route; it just aggregates minifigs from owned sets — POST returns 405), so there's no server-side owned-minifig list. The entire collection lives in local `.minifig_collection.json` keyed by fig_num (`{quantity, condition, price_paid, name, img_url}`). LOCAL-ONLY — empty on Render.
+- `GET /api/owned_minifigs` — name-sorted list (fig_num, name, num_parts, img, quantity, condition, price_paid)
+- `GET /api/owned_minifigs/<fig_num>` — `{owned, quantity, condition, price_paid}`
+- `POST /api/add_minifig` — add (merges quantity; body carries name/img_url for offline-friendly display)
+- `POST /api/remove_minifig_one` — decrement by 1 (deletes the entry at 0)
+- `POST /api/owned_minifigs/<fig_num>/meta` — save condition + price_paid (no-op if not owned)
+- Shared JSON helpers: `_load_meta` / `_save_meta` / `_clean_meta` (used by both set + minifig stores).
 
 **Offline Catalog Search:**
 - `GET /api/local/search?q=&type=parts|minifigs|sets&limit=` — Search by name or catalog number. Prefers the local SQLite catalog (`brick_parts.db`, no Rebrickable quota); **falls back to the live Rebrickable API when the DB is absent** (e.g. production). Response includes `"source": "offline" | "api"` so the UI can badge the data source. **BrickLink minifig ids** (e.g. `sw0131`): Rebrickable exposes no BrickLink minifig ids, so when a minifig query matches a BrickLink-id pattern and has no local hit, the id is translated to a name via the BrickLink API (`_bricklink_minifig_name`) and the best-matching Rebrickable figs are returned as **candidates** (`_local_minifig_search_by_name`, ranked by word overlap) along with a `"bl_match": {id, name}` field — the user picks the right one (names diverge between catalogs, so it's deliberately not a single auto-pick).
@@ -190,6 +198,7 @@ Single-page app with 5 screens:
 **Modes:** Parts vs. Minifigs (affects list endpoints and UI text)
 
 **Key features:**
+- **Live camera auto-scan** — Hands-free viewfinder (`#liveVideo`) that captures a frame every ~1.5s → `/api/identify`, presenting the first hit with top `score ≥ 0.55` (`startLiveScan`/`liveTick`/`syncLiveScan`, hooked into `goTo`/`switchMode`/`load`/`visibilitychange`). **Needs a secure context** (HTTPS/localhost) — falls back to the "Take Photo" flow over plain HTTP (e.g. phone on the tailnet without `tailscale serve`). Persisted toggle `localStorage 'liveScan'`.
 - **Canvas color detection** — Samples pixels from bounding box (or center 40% fallback) in LAB color space for perceptual matching
 - **EXIF rotation handling** — Converts portrait camera images (EXIF orientation 6) to landscape raw coordinates for bbox alignment
 - **Color matching logic** — Prioritizes hue distance for chromatic colors, LAB distance for achromatic; penalizes Trans-, Glow-in-Dark, Satin colors unless explicitly detected. Selection depends on how many colors Brickognize predicts: **exactly one → trust it outright** (Brickognize is confident; pixel sampling can mislead — a well-lit Dark Green reads close to Green); **multiple/none → match the sampled pixel against the part's full palette** (every color it comes in), with the predicted colors applied as a **prior** (`findClosestLegoColor(..., preferredIds, trustShortlist)`: shortlist members get a −15 bonus) rather than a hard restriction — Brickognize's shortlist sometimes omits the true color (e.g. Dark Azure), so restricting to it caused wrong picks. The `preferred` single-id −30 bonus is still used by the alternatives re-match path.
@@ -200,12 +209,19 @@ Single-page app with 5 screens:
 - **Inline list creation** — Create new lists directly from picker modals without navigation
 - **Expandable parts** — Minifigure parts section is collapsible to reduce visual clutter
 - **List management UI** — Add/remove buttons in list view for quick quantity adjustments
+- **Swipe-left to remove one** — Parts-list, My Sets, and My Minifigs rows reveal a red "Remove 1" button on left-swipe (iOS-Mail style). Reusable `makeSwipeRemovable(rowEl, onRemove, label)` + `consumeSwipe(rowEl)` (swallows the tap on swiped/open rows that also have a tap action). Parts share `mutateListPart()` with the +/− buttons.
+- **Swipe-from-left-edge to go back** — iOS-style back gesture (`backSwipe` IIFE, `BACK_TARGETS`): right-swipe from `<28px` on detail screens → parent (identify/success → scan, set-details → My Sets). Excluded on the top-level tab screens (no conflict with the opposite-direction swipe-to-delete); guarded by `_overlayOpen()`; `goTo` clears residual transforms.
+- **Pull-to-refresh** — pull down at `scrollTop 0` on browse screens to reload (`pullToRefresh` IIFE + `_ptrRefreshFn` map: Lists/Sets/Cart/Set-details/My-Minifigs). Vertical-locked (no clash with the back swipe), `_overlayOpen()`-guarded; `#ptrIndicator` spinner + `overscroll-behavior-y: contain`. The list loaders **return their fetch promise**, so the spinner runs until the fetch actually resolves (400ms floor).
+- **Auto-refresh on resume** — `refreshActiveScreenData()` (reusing `_ptrRefreshFn`) re-fetches the active screen's data on `visibilitychange`→visible (after >2s hidden) + `pageshow`, fixing the iOS PWA "stale until force-close" resume behavior.
+- **Gated auto-reload on new version** — server injects a content-hash app version (`_app_version` → `/api/version` + `<meta name="app-version">`); on resume `checkForUpdate()` compares and reloads to pick up new app code, but only when `_safeToReload()` (not mid scan/identify/loading/success, no modal, not live-scanning) — else defers via `_updatePending` until the next `goTo` to a safe screen. So the installed PWA self-updates without interrupting a scan.
 - **List live search** — A search box in the Lists view filters the whole list **as you type** (part #, name, or colour) with an `N of M parts` count. The full list is loaded once into memory via `/api/partlists/<id>/parts_all` (`_listAllParts`, `renderListParts`/`filterListParts`); replaces the old Load-More pagination. The `+/−` steppers keep the in-memory list + count in sync.
 - **Voice quick-add mode** — A persisted (localStorage) toggle in the "Add by voice" modal that adds spoken parts **straight to the selected list with no confirm card** (re-arms the mic for rapid entry); falls back to the confirm card when no list is selected or no colour was heard.
 - **Lazy image loading** — `lazyLoadImages()` (IntersectionObserver, 300px margin, `data-src`) on the set-details Parts/Minifigs lists. Avoids both iOS Safari's broken native `loading="lazy"` for dynamic rows **and** the connection-pool exhaustion ("?" broken-image flood) from rendering hundreds of `<img>` at once on large sets.
 - **Color-specific images** — Cache and display correct images for each part/color variant
 - **Design system** — See `.interface-design/system.md` (sorting-station direction). **Inter** (display/body) + **Space Mono** (catalog data — part #s, ids, quantities, dates). **Azure** accent (`#3B9EFF`, the `--yellow` token); **bluish-gray** elevation (LEGO's real structural neutral, in the azure hue family): `--bg #0C1014` → `--surface #141A22` → `--surface2 #1B2330` → `--surface3 #232E3D`; low-opacity bluish seams; glossy ABS **stud** colour chips; baseplate scan **socket** (not a magnifying glass); unified inline-SVG tab icons (`currentColor`). CSS custom properties throughout.
 - **Loading screen** — CSS scan-beam animation (yellow bar sweeping across corner-bracket frame); hidden SVG kept in DOM for JS `animateScan()` compat; 2×4 LEGO brick SVG (isometric 3/4 view with 8 studs, radial gradient stud tops). Shows a **simulated progress %** (`#loadingPct`, `startLoadingProgress()`/`finishLoadingProgress()`): `/api/identify` is one opaque request with no progress events, so it eases toward ~90% during the wait and snaps to 100% on response.
+
+- **Installable PWA** — `manifest.webmanifest` (`display: standalone`) + a root-scoped service worker (`/sw.js`) make it "Add to Home Screen"-able with an app icon, full-screen chrome, and an offline shell. SW caching: navigations network-first, `/static/` stale-while-revalidate, **`/api/` + cross-origin never cached** (data stays live). Backend serves `/sw.js` (with `Service-Worker-Allowed: /`) + `/manifest.webmanifest`. Secure-context only (HTTPS/localhost). Icons generated from `static/app-icon.svg` via `qlmanage`+`sips`.
 
 **No external JS frameworks** — Pure vanilla JS with event listeners and DOM manipulation
 
@@ -406,7 +422,7 @@ python3 app.py
 - **templates/index.html** — 5500+ lines: HTML, CSS, vanilla JS, canvas color detection
 - **.interface-design/system.md** — design system (direction, tokens, typography, component patterns). Read before any UI change.
 - **build_brick_db.py** — Builds `brick_parts.db` (offline search) from the `Brick Parts/` CSV dump
-- **static/** — Minifig PNG, brick SVG (header logo; tab icons are now inline SVGs)
+- **static/** — Minifig PNG, brick SVG (header logo; tab icons are now inline SVGs); PWA assets: `manifest.webmanifest`, `sw.js`, `app-icon.svg` + generated `icon-192/512.png` & `apple-touch-icon.png`
 - **.env** — API credentials (git-ignored)
 - **brick_parts.db / Brick Parts/** — Offline catalog DB + source CSVs (git-ignored, local dev only)
 - **SETUP.md** — new-machine setup, private (Tailscale) access, Render deploy/keys/cost detail

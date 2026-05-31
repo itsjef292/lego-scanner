@@ -5,7 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
   <title>Brick Scanner</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-  <link rel="apple-touch-icon" href="/static/favicon.svg">
+  <!-- PWA / installable web app -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="app-version" content="{{ app_version }}">
+  <meta name="theme-color" content="#0C1014">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="Brick Scanner">
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -51,7 +59,7 @@
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
-    html, body { overflow-x: hidden; max-width: 100%; }
+    html, body { overflow-x: hidden; max-width: 100%; overscroll-behavior-y: contain; }
 
     body {
       font-family: var(--font-body);
@@ -265,6 +273,40 @@
     }
     .scan-area .btn { position: relative; z-index: 1; }
     #cameraInput { display: none; }
+    /* Live viewfinder (hands-free auto-scan) */
+    #liveVideo {
+      width: 100%; max-height: 320px; border-radius: var(--radius);
+      object-fit: cover; background: var(--socket); position: relative; z-index: 1;
+      border: 1px solid var(--border-bright);
+    }
+    #liveScanning {
+      display: flex; align-items: center; gap: 8px; position: relative; z-index: 1;
+      font-family: var(--font-display); font-size: 12px; font-weight: 600;
+      letter-spacing: 0.8px; text-transform: uppercase; color: var(--yellow);
+    }
+    #liveScanning .live-dot {
+      width: 9px; height: 9px; border-radius: 50%; background: var(--yellow);
+      box-shadow: 0 0 0 0 rgba(59,158,255,0.6); animation: livePulse 1.2s ease-out infinite;
+    }
+    @keyframes livePulse {
+      0% { box-shadow: 0 0 0 0 rgba(59,158,255,0.55); }
+      70% { box-shadow: 0 0 0 9px rgba(59,158,255,0); }
+      100% { box-shadow: 0 0 0 0 rgba(59,158,255,0); }
+    }
+    /* Pull-to-refresh indicator (browse/list screens) */
+    #ptrIndicator {
+      position: fixed; top: 0; left: 50%; transform: translate(-50%, -50px);
+      z-index: 1500; width: 36px; height: 36px; border-radius: 50%;
+      background: var(--surface2); border: 1px solid var(--border-bright);
+      box-shadow: 0 4px 14px rgba(0,0,0,0.5); opacity: 0; pointer-events: none;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #ptrIndicator .ptr-spin {
+      width: 18px; height: 18px; border-radius: 50%;
+      border: 2px solid var(--muted2); border-top-color: var(--yellow);
+    }
+    #ptrIndicator.spinning .ptr-spin { animation: ptrSpin .7s linear infinite; }
+    @keyframes ptrSpin { to { transform: rotate(360deg); } }
 
     /* ── Buttons ── */
     .btn {
@@ -741,6 +783,23 @@
     }
     .list-adjust-btn.add { background: #091A0F; border-color: #1E4D2B; color: #86EFAC; }
     .list-adjust-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    /* Swipe-left-to-reveal-Remove (iOS Mail style) for list rows */
+    .swipe-wrap { position: relative; overflow: hidden; }
+    .swipe-remove-btn {
+      position: absolute; top: 0; right: 0; bottom: 0; width: 92px;
+      border: none; cursor: pointer; background: var(--red); color: #fff;
+      font-family: var(--font-display); font-size: 13px; font-weight: 700;
+      letter-spacing: 0.3px; display: flex; align-items: center; justify-content: center;
+    }
+    .swipe-remove-btn:disabled { opacity: 0.7; }
+    .swipe-fg { position: relative; background: var(--bg); touch-action: pan-y; }
+    .cond-pill {
+      background: var(--surface3); border: none; color: var(--muted);
+      font-family: var(--font-display); font-size: 13px; font-weight: 600;
+      padding: 7px 14px; cursor: pointer; transition: background .12s, color .12s;
+    }
+    .cond-pill + .cond-pill { border-left: 1px solid var(--border-bright); }
+    .cond-pill.active { background: var(--yellow); color: #06121F; }
     .list-msg {
       display: none; margin: 0 14px 10px;
       padding: 10px 12px; border-radius: var(--radius);
@@ -1096,6 +1155,9 @@
   </button>
 </div>
 
+<!-- Pull-to-refresh indicator (fixed, body-level so screen transforms don't move it) -->
+<div id="ptrIndicator"><span class="ptr-spin"></span></div>
+
 <!-- Screen 1: Scan -->
 <div class="screen active" id="screen-scan">
   <!-- Parts search box -->
@@ -1127,9 +1189,12 @@
     <span class="scan-grid"></span>
     <span class="corner-br"></span>
     <span class="corner-tr"></span>
-    <div class="scan-socket"></div>
+    <div class="scan-socket" id="scanSocket"></div>
+    <video id="liveVideo" playsinline muted style="display:none;"></video>
+    <div id="liveScanning" style="display:none;"><span class="live-dot"></span>Scanning…</div>
     <p id="scanHint">Take a photo of a LEGO part to identify it and add it to your parts list.</p>
-    <button class="btn" onclick="document.getElementById('cameraInput').click()">Take Photo</button>
+    <button class="btn" id="liveScanBtn" onclick="toggleLiveScan()" style="display:none;">Start Live Scan</button>
+    <button class="btn" id="takePhotoBtn" onclick="document.getElementById('cameraInput').click()">Take Photo</button>
     <input type="file" id="cameraInput" accept="image/*" capture="environment">
   </div>
 
@@ -1155,8 +1220,18 @@
   <!-- Minifig note -->
   <div id="minifigListRow" style="padding:0 0 8px;display:none;">
     <p style="margin:0;font-size:13px;color:var(--muted);line-height:1.4;">
-      Scan or search a minifig to add it to your Rebrickable collection.
+      Scan or search a minifig to add it to your minifig collection.
     </p>
+  </div>
+
+  <!-- My Minifigs (owned-minifig collection; minifig mode only) -->
+  <div id="myMinifigsSection" style="padding:0 0 24px;display:none;">
+    <div onclick="toggleMyMinifigs()" style="display:flex;align-items:center;gap:8px;margin:18px 0 12px;cursor:pointer;user-select:none;">
+      <svg id="myMinifigsChevron" viewBox="0 0 24 24" style="width:14px;height:14px;fill:var(--muted);transition:transform .15s;flex-shrink:0;"><path d="M7 10l5 5 5-5z"/></svg>
+      <div style="font-family:var(--font-display);font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.8px;">My Minifigs</div>
+      <div id="myMinifigsCount" style="margin-left:auto;font-family:var(--font-mono);font-size:12px;color:var(--muted2);"></div>
+    </div>
+    <div id="myMinifigsGrid"></div>
   </div>
 
   <!-- Offline catalog footer: last-updated + manual refresh (local dev only) -->
@@ -1285,6 +1360,24 @@
         <button class="list-adjust-btn remove" onclick="removeOwnedSetOne()" aria-label="Remove one">−</button>
         <span id="setOwnQty" style="font-family:var(--font-mono);font-weight:700;color:var(--text);min-width:26px;text-align:center;">×1</span>
         <button class="list-adjust-btn add" onclick="addOwnedSet()" aria-label="Add one">+</button>
+      </div>
+    </div>
+    <div id="setOwnMeta" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:11px 14px;margin-top:8px;flex-wrap:wrap;align-items:center;gap:12px;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;">Condition</span>
+        <div style="display:flex;border:1px solid var(--border-bright);border-radius:8px;overflow:hidden;">
+          <button type="button" id="condUsedBtn" class="cond-pill" onclick="setOwnedCondition('used')">Used</button>
+          <button type="button" id="condNewBtn" class="cond-pill" onclick="setOwnedCondition('new')">New</button>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-left:auto;">
+        <span style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;">Paid</span>
+        <div style="display:flex;align-items:center;background:var(--socket);border:1px solid var(--border-bright);border-radius:8px;padding:0 10px;">
+          <span style="font-family:var(--font-mono);color:var(--muted2);font-size:14px;">$</span>
+          <input id="setPaidInput" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00"
+                 onchange="saveOwnedMeta()"
+                 style="width:74px;background:transparent;border:none;color:var(--text);font-family:var(--font-mono);font-size:14px;padding:8px 4px;outline:none;">
+        </div>
       </div>
     </div>
     <div id="setOwnMsg" style="display:none;font-size:12px;margin-top:6px;"></div>
@@ -1586,7 +1679,7 @@
   <!-- Actions -->
   <div class="action-area">
     <div class="qty-row" id="qtyRow" style="display:flex;align-items:flex-end;gap:12px;">
-      <div style="flex:1;">
+      <div style="flex:1;" id="qtyControlsWrap">
         <label>Quantity</label>
         <div class="qty-controls">
           <button onclick="adjustQty(-1)">−</button>
@@ -1596,8 +1689,42 @@
       </div>
       <button class="btn green" id="addAllPartsBtn" onclick="showAddPartsListPicker()" style="display:none;margin-bottom:0;">Add Parts</button>
     </div>
+
+    <!-- Minifig owned bar (My Minifigs): add button → stepper + condition/price, like set-details -->
+    <div id="minifigOwnBar" style="display:none;margin-bottom:12px;">
+      <button id="figOwnAddBtn" class="btn green" onclick="addMinifig()" style="margin-bottom:0;">Add to My Minifigs</button>
+      <div id="figOwnStepper" style="display:none;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:11px 14px;">
+        <span style="width:14px;height:14px;border-radius:50%;background:radial-gradient(circle at 36% 30%,#6fd79b,var(--green) 75%);flex-shrink:0;"></span>
+        <span style="color:var(--green);font-weight:600;font-size:14px;">In My Minifigs</span>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:12px;">
+          <button class="list-adjust-btn remove" onclick="removeMinifigOne()" aria-label="Remove one">−</button>
+          <span id="figOwnQty" style="font-family:var(--font-mono);font-weight:700;color:var(--text);min-width:26px;text-align:center;">×1</span>
+          <button class="list-adjust-btn add" onclick="addMinifig()" aria-label="Add one">+</button>
+        </div>
+      </div>
+      <div id="figOwnMeta" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:11px 14px;margin-top:8px;flex-wrap:wrap;align-items:center;gap:12px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;">Condition</span>
+          <div style="display:flex;border:1px solid var(--border-bright);border-radius:8px;overflow:hidden;">
+            <button type="button" id="condFigUsedBtn" class="cond-pill" onclick="setOwnedMinifigCondition('used')">Used</button>
+            <button type="button" id="condFigNewBtn" class="cond-pill" onclick="setOwnedMinifigCondition('new')">New</button>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-left:auto;">
+          <span style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;">Paid</span>
+          <div style="display:flex;align-items:center;background:var(--socket);border:1px solid var(--border-bright);border-radius:8px;padding:0 10px;">
+            <span style="font-family:var(--font-mono);color:var(--muted2);font-size:14px;">$</span>
+            <input id="figPaidInput" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00"
+                   onchange="saveOwnedMinifigMeta()"
+                   style="width:74px;background:transparent;border:none;color:var(--text);font-family:var(--font-mono);font-size:14px;padding:8px 4px;outline:none;">
+          </div>
+        </div>
+      </div>
+      <div id="figOwnMsg" style="display:none;font-size:12px;margin-top:6px;"></div>
+    </div>
+
     <button class="btn green" id="addBtn" onclick="addItem()">Add to List</button>
-    <button class="btn secondary" id="retakeBtn" onclick="goTo('screen-scan')">Retake Photo</button>
+    <button class="btn secondary" id="retakeBtn" onclick="retakeOrBack()">Retake Photo</button>
   </div>
 </div>
 
@@ -1651,6 +1778,8 @@
     document.getElementById('minifigSearchSection').style.display = m === 'minifigs' ? '' : 'none';
     document.getElementById('partListRow').style.display = m === 'parts' ? '' : 'none';
     document.getElementById('minifigListRow').style.display = m === 'minifigs' ? '' : 'none';
+    document.getElementById('myMinifigsSection').style.display = m === 'minifigs' ? '' : 'none';
+    if (m === 'minifigs') loadMyMinifigs();
     document.getElementById('scanHint').textContent = m === 'parts'
       ? 'Take a photo of a LEGO part to identify it and add it to your parts list.'
       : 'Take a photo of a LEGO minifigure to identify it and add it to your minifig list.';
@@ -1701,6 +1830,7 @@
       document.getElementById('screen-shopping').classList.remove('active');
       document.getElementById('screen-scan').classList.add('active');
     }
+    if (typeof syncLiveScan === 'function') syncLiveScan();
   }
 
   // ── Parts lists ─────────────────────────────────────────────────────
@@ -1955,6 +2085,325 @@
       .then(data => { finishLoadingProgress(); showIdentifyScreen(data); })
       .catch(() => { finishLoadingProgress(); showIdentifyScreen({ items: [] }); });
   }
+
+  // ── Live camera auto-scan (hands-free) ──────────────────────────────────
+  // A live viewfinder that grabs a frame every ~1.5s and identifies it,
+  // presenting the result on the first confident hit. Requires a SECURE CONTEXT
+  // (HTTPS or localhost) — browsers block getUserMedia over plain HTTP, so on the
+  // phone over Tailscale http:// the camera is unavailable and we fall back to the
+  // "Take Photo" capture flow. Toggle persisted in localStorage ('liveScan').
+  const LIVE_INTERVAL = 1500;   // ms between capture attempts
+  const LIVE_SCORE_MIN = 0.55;  // Brickognize confidence gate so empty frames don't fire
+  let _liveStream = null, _liveTimer = null, _liveBusy = false, _liveRunning = false;
+  let _liveEnabled = true;
+  try { _liveEnabled = localStorage.getItem('liveScan') !== '0'; } catch (e) {}
+  const liveSupported = () => !!(window.isSecureContext && navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+
+  function _setLiveUI(on) {
+    const ids = { liveVideo: on, liveScanning: on };
+    const off = { scanSocket: on, scanHint: on, takePhotoBtn: on };
+    Object.entries(ids).forEach(([id, show]) => { const el = document.getElementById(id); if (el) el.style.display = show ? '' : 'none'; });
+    Object.entries(off).forEach(([id, hide]) => { const el = document.getElementById(id); if (el) el.style.display = hide ? 'none' : ''; });
+    const btn = document.getElementById('liveScanBtn');
+    if (btn) { btn.style.display = liveSupported() ? '' : 'none'; btn.textContent = on ? 'Stop Live Scan' : 'Start Live Scan'; }
+  }
+
+  async function startLiveScan() {
+    if (_liveRunning || !liveSupported()) return;
+    const video = document.getElementById('liveVideo');
+    try {
+      _liveStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+    } catch (err) {
+      // Permission denied / needs a tap / no camera — stop auto-retrying this
+      // session and leave the manual "Start Live Scan" + Take Photo buttons.
+      _liveEnabled = false;
+      _setLiveUI(false);
+      return;
+    }
+    _liveRunning = true;
+    video.srcObject = _liveStream;
+    video.muted = true; video.setAttribute('playsinline', '');
+    try { await video.play(); } catch (e) {}
+    _setLiveUI(true);
+    _liveTimer = setInterval(liveTick, LIVE_INTERVAL);
+  }
+
+  function stopLiveScan() {
+    if (_liveTimer) { clearInterval(_liveTimer); _liveTimer = null; }
+    if (_liveStream) { _liveStream.getTracks().forEach(t => t.stop()); _liveStream = null; }
+    const video = document.getElementById('liveVideo');
+    if (video) video.srcObject = null;
+    _liveRunning = false; _liveBusy = false;
+    _setLiveUI(false);
+  }
+
+  function liveTick() {
+    if (_liveBusy || !_liveRunning || document.hidden) return;
+    const video = document.getElementById('liveVideo');
+    if (!video || video.readyState < 2 || !video.videoWidth) return;
+    _liveBusy = true;
+    const scale = Math.min(1, 1024 / video.videoWidth);
+    const w = Math.round(video.videoWidth * scale), h = Math.round(video.videoHeight * scale);
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    c.getContext('2d').drawImage(video, 0, 0, w, h);
+    c.toBlob((blob) => {
+      if (!blob || !_liveRunning) { _liveBusy = false; return; }
+      const form = new FormData();
+      form.append('image', blob, 'live.jpg');
+      fetch('/api/identify', { method: 'POST', body: form })
+        .then(r => r.json())
+        .then(data => {
+          if (!_liveRunning) return;
+          const top = (data.items || [])[0];
+          if (top && (top.score || 0) >= LIVE_SCORE_MIN) {
+            if (capturedObjectUrl) URL.revokeObjectURL(capturedObjectUrl);
+            capturedObjectUrl = URL.createObjectURL(blob);   // freeze the hit frame
+            stopLiveScan();                                  // release camera before presenting
+            showIdentifyScreen(data);
+          } else {
+            _liveBusy = false;                               // keep scanning
+          }
+        })
+        .catch(() => { _liveBusy = false; });
+    }, 'image/jpeg', 0.85);
+  }
+
+  function toggleLiveScan() {
+    if (_liveRunning) {
+      _liveEnabled = false;
+      try { localStorage.setItem('liveScan', '0'); } catch (e) {}
+      stopLiveScan();
+    } else {
+      _liveEnabled = true;
+      try { localStorage.setItem('liveScan', '1'); } catch (e) {}
+      startLiveScan();
+    }
+  }
+
+  // Start/stop the camera based on whether the scan screen is showing (in a
+  // parts/minifig mode). Called after every navigation (goTo + switchMode).
+  function syncLiveScan() {
+    const onScan = document.getElementById('screen-scan').classList.contains('active')
+      && (mode === 'parts' || mode === 'minifigs');
+    if (onScan && _liveEnabled && liveSupported()) {
+      startLiveScan();
+    } else {
+      stopLiveScan();
+      if (onScan) { const b = document.getElementById('liveScanBtn'); if (b) b.style.display = liveSupported() ? '' : 'none'; }
+    }
+  }
+  // Re-fetch the active screen's data (used on app resume + pull-to-refresh).
+  // iOS keeps an installed PWA's page suspended and *resumes* it instead of
+  // reloading, so without this you'd see stale data from last time until a
+  // force-close. _ptrRefreshFn is defined further down (hoisted).
+  function refreshActiveScreenData() {
+    const fn = (typeof _ptrRefreshFn === 'function') ? _ptrRefreshFn() : null;
+    if (fn) { try { fn(); } catch (e) {} }
+  }
+
+  // ── Gated auto-reload when a new app version is deployed ────────────────
+  // The app code lives in index.html (inline), so we detect updates by comparing
+  // this page's version (a content hash injected at render) against /api/version
+  // on resume. If they differ, reload — but only at a SAFE moment so we never
+  // yank the user out of an in-progress scan.
+  const APP_VERSION = (document.querySelector('meta[name="app-version"]') || {}).content || '';
+  let _reloading = false, _updatePending = false;
+  function _safeToReload() {
+    const el = document.querySelector('.screen.active');
+    if (!el) return false;
+    if (['screen-identify', 'screen-loading', 'screen-success'].includes(el.id)) return false;
+    if (typeof _overlayOpen === 'function' && _overlayOpen()) return false;
+    if (typeof _liveRunning !== 'undefined' && _liveRunning) return false;  // mid live-scan
+    return true;
+  }
+  function _maybeApplyUpdate() {
+    if (_updatePending && !_reloading && _safeToReload()) {
+      _reloading = true;
+      location.reload();
+    }
+  }
+  function checkForUpdate() {
+    if (_reloading || !APP_VERSION) return;
+    fetch('/api/version', { cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        if (!d || !d.version || d.version === APP_VERSION) return;
+        _updatePending = true;     // new code deployed — apply when it's safe
+        _maybeApplyUpdate();
+      })
+      .catch(() => {});
+  }
+
+  // Release the camera when backgrounded; on return, restart it, refresh data,
+  // and check for a new version (only if we were away a moment, so quick
+  // app-switches don't thrash).
+  let _hiddenAt = 0;
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      _hiddenAt = Date.now();
+      stopLiveScan();
+    } else {
+      syncLiveScan();
+      if (Date.now() - _hiddenAt > 2000) { checkForUpdate(); refreshActiveScreenData(); }
+    }
+  });
+  // Some iOS PWA resumes fire pageshow (bfcache restore) instead of visibility.
+  window.addEventListener('pageshow', (e) => {
+    if (e.persisted) { checkForUpdate(); refreshActiveScreenData(); }
+  });
+  // Kick off live scanning on first load (no-op where unsupported / disabled).
+  window.addEventListener('load', syncLiveScan);
+
+  // Register the service worker (PWA install + offline shell). Only works in a
+  // secure context (HTTPS / localhost); silently skipped over plain HTTP.
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    });
+  }
+
+  // ── Swipe-right-from-the-left-edge to go back (iOS-style) ────────────────
+  // Only on detail screens — each maps to its parent. The top-level tab screens
+  // (which carry the swipe-LEFT-to-delete rows) are intentionally excluded, so
+  // there's no conflict with that gesture.
+  const BACK_TARGETS = {
+    'screen-identify': () => retakeOrBack(),                       // → scan
+    'screen-set-details': () => { goTo('screen-sets'); loadMySets(); },
+    'screen-success': () => retakeOrBack(),                        // → scan
+  };
+  function _overlayOpen() {
+    if (document.querySelector('#imageModal.active, #voiceModal.active, #blExportModal.active')) return true;
+    return ['selectPartListModal', 'addPartsListModal'].some(id => {
+      const el = document.getElementById(id);
+      return el && el.style.display && el.style.display !== 'none';
+    });
+  }
+  (function backSwipe() {
+    const EDGE = 28, COMMIT = 70;
+    let scr = null, startX = 0, startY = 0, dir = null, dragging = false;
+    document.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1 || _overlayOpen()) return;
+      const t = e.touches[0];
+      if (t.clientX > EDGE) return;                 // must begin at the left edge
+      const el = document.querySelector('.screen.active');
+      if (!el || !BACK_TARGETS[el.id]) return;
+      scr = el; startX = t.clientX; startY = t.clientY; dir = null; dragging = true;
+    }, { passive: true });
+    document.addEventListener('touchmove', (e) => {
+      if (!dragging || !scr) return;
+      const dx = e.touches[0].clientX - startX, dy = e.touches[0].clientY - startY;
+      if (dir === null) {
+        if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+        dir = Math.abs(dx) > Math.abs(dy) ? 'h' : 'v';
+        if (dir !== 'h') { dragging = false; return; }   // vertical → let it scroll
+      }
+      e.preventDefault();
+      const x = Math.max(0, dx);
+      scr.style.transition = 'none';
+      scr.style.transform = `translateX(${x}px)`;
+      scr.style.opacity = String(Math.max(0.5, 1 - x / 420));
+    }, { passive: false });
+    function finish(e) {
+      if (!dragging || !scr) { dragging = false; return; }
+      dragging = false;
+      const el = scr; scr = null;
+      const dx = (e.changedTouches ? e.changedTouches[0].clientX : startX) - startX;
+      const clear = () => { el.style.transition = ''; el.style.transform = ''; el.style.opacity = ''; };
+      if (dir === 'h' && dx > COMMIT) {
+        const target = BACK_TARGETS[el.id];
+        el.style.transition = 'transform .18s ease, opacity .18s ease';
+        el.style.transform = 'translateX(100%)';
+        el.style.opacity = '0';
+        setTimeout(() => { clear(); target && target(); }, 175);
+      } else {
+        el.style.transition = 'transform .2s ease, opacity .2s ease';
+        el.style.transform = ''; el.style.opacity = '';
+      }
+    }
+    document.addEventListener('touchend', finish);
+    document.addEventListener('touchcancel', finish);
+  })();
+
+  // ── Pull-to-refresh on the browse/list screens ──────────────────────────
+  // Pull down from the very top (page scroll at 0) to reload the active list.
+  // Vertical-locked, so it doesn't collide with the horizontal back/edge swipe;
+  // suppressed while a modal is open or the page is scrolled.
+  function _ptrRefreshFn() {
+    const el = document.querySelector('.screen.active');
+    if (!el) return null;
+    switch (el.id) {
+      case 'screen-lists': return () => loadListContents();
+      case 'screen-sets': return () => loadMySets();
+      case 'screen-shopping': return () => loadShoppingList();
+      case 'screen-set-details':
+        return window.currentSetNum
+          ? () => loadSetDetails(window.currentSetNum, (document.getElementById('setDetailTitle') || {}).textContent || '')
+          : null;
+      case 'screen-scan': return mode === 'minifigs' ? () => loadMyMinifigs() : null;
+      default: return null;   // identify / success / loading aren't refreshable
+    }
+  }
+  (function pullToRefresh() {
+    const THRESH = 64, MAX = 96;
+    const ind = document.getElementById('ptrIndicator');
+    const spin = ind ? ind.querySelector('.ptr-spin') : null;
+    let startY = 0, startX = 0, dir = null, pulling = false, dist = 0, refreshing = false;
+    const scrollTop = () => window.scrollY || document.documentElement.scrollTop || 0;
+    function place(dy) {
+      dist = Math.min(MAX, dy * 0.55);
+      const prog = dist / THRESH;
+      ind.style.transition = 'none';
+      ind.style.transform = `translate(-50%, ${-50 + dist}px)`;
+      ind.style.opacity = String(Math.min(1, prog));
+      if (spin) spin.style.transform = `rotate(${prog * 270}deg)`;
+    }
+    function reset() {
+      ind.style.transition = 'transform .2s ease, opacity .2s ease';
+      ind.style.transform = 'translate(-50%, -50px)';
+      ind.style.opacity = '0';
+      ind.classList.remove('spinning');
+    }
+    document.addEventListener('touchstart', (e) => {
+      if (refreshing || !ind || e.touches.length !== 1 || scrollTop() > 0) return;
+      if (typeof _overlayOpen === 'function' && _overlayOpen()) return;
+      if (!_ptrRefreshFn()) return;
+      startY = e.touches[0].clientY; startX = e.touches[0].clientX; dir = null; pulling = true; dist = 0;
+    }, { passive: true });
+    document.addEventListener('touchmove', (e) => {
+      if (!pulling) return;
+      const dy = e.touches[0].clientY - startY, dx = e.touches[0].clientX - startX;
+      if (dir === null) {
+        if (Math.abs(dy) < 8 && Math.abs(dx) < 8) return;
+        dir = Math.abs(dy) > Math.abs(dx) ? 'v' : 'h';
+        if (dir !== 'v') { pulling = false; return; }   // horizontal → let the back swipe handle it
+      }
+      if (dy <= 0 || scrollTop() > 0) { pulling = false; reset(); return; }
+      e.preventDefault();
+      place(dy);
+    }, { passive: false });
+    function end() {
+      if (!pulling) return;
+      pulling = false;
+      const fn = _ptrRefreshFn();
+      if (dir === 'v' && dist >= THRESH && fn) {
+        refreshing = true;
+        ind.style.transition = 'transform .2s ease';
+        ind.style.transform = 'translate(-50%, 20px)';
+        ind.style.opacity = '1';
+        ind.classList.add('spinning');
+        // Spin until the loader's fetch actually resolves (loaders return their
+        // promise); keep a small floor so an instant local load doesn't flicker.
+        let work;
+        try { work = Promise.resolve(fn()); } catch (e) { work = Promise.resolve(); }
+        const floor = new Promise(res => setTimeout(res, 400));
+        Promise.all([work.catch(() => {}), floor]).then(() => { reset(); refreshing = false; });
+      } else {
+        reset();
+      }
+    }
+    document.addEventListener('touchend', end);
+    document.addEventListener('touchcancel', end);
+  })();
 
   async function searchPartByNumber() {
     const partNum = document.getElementById('partSearchInput').value.trim();
@@ -2630,14 +3079,21 @@
     document.getElementById('priceSection').style.display = 'none';
     const addBtn = document.getElementById('addBtn');
     const addPartsBtn = document.getElementById('addAllPartsBtn');
+    const ownBar = document.getElementById('minifigOwnBar');
+    const qtyWrap = document.getElementById('qtyControlsWrap');
     if (isMinifig) {
-      addBtn.style.display = '';
-      addBtn.textContent = 'Add to My Minifigs';
-      addBtn.onclick = addMinifig;
+      // The owned bar (add → stepper + condition/price) replaces the generic
+      // add button + quantity input for minifigs, mirroring set-details.
+      addBtn.style.display = 'none';
+      ownBar.style.display = '';
+      qtyWrap.style.display = 'none';
       addPartsBtn.style.display = '';
       renderInventoryStatus(0, 'hidden');
+      loadOwnedMinifigStatus(item.id);
     } else {
       addBtn.style.display = '';
+      ownBar.style.display = 'none';
+      qtyWrap.style.display = '';
       addPartsBtn.style.display = 'none';
       addBtn.textContent = 'Add to List';
       addBtn.onclick = addItem;
@@ -2830,6 +3286,7 @@
       document.getElementById('rbValue').textContent = '—';
       document.getElementById('altSection').style.display = 'none';
       document.getElementById('colorSheet').classList.remove('open');
+      document.getElementById('minifigOwnBar').style.display = 'none';
       selectedPart = null;
       renderInventoryStatus(0, 'hidden');
       return;
@@ -3266,35 +3723,101 @@
     });
   }
 
+  // ── Owned minifigs ("My Minifigs" collection) — mirrors the owned-set bar ──
+  function _renderOwnedMinifigUI(owned, qty, condition, pricePaid) {
+    const addBtn = document.getElementById('figOwnAddBtn');
+    const stepper = document.getElementById('figOwnStepper');
+    const meta = document.getElementById('figOwnMeta');
+    if (owned) {
+      addBtn.style.display = 'none';
+      stepper.style.display = 'flex';
+      document.getElementById('figOwnQty').textContent = `×${qty}`;
+      meta.style.display = 'flex';
+      _renderOwnedMinifigMeta(condition, pricePaid);
+    } else {
+      addBtn.style.display = 'block';
+      stepper.style.display = 'none';
+      meta.style.display = 'none';
+    }
+  }
+  function _renderOwnedMinifigMeta(condition, pricePaid) {
+    window.currentFigCondition = (condition === 'used' || condition === 'new') ? condition : null;
+    document.getElementById('condFigUsedBtn').classList.toggle('active', condition === 'used');
+    document.getElementById('condFigNewBtn').classList.toggle('active', condition === 'new');
+    const inp = document.getElementById('figPaidInput');
+    inp.value = (pricePaid !== null && pricePaid !== undefined && pricePaid !== '') ? pricePaid : '';
+  }
+  function _figOwnMsg(text, isErr) {
+    const m = document.getElementById('figOwnMsg');
+    if (!text) { m.style.display = 'none'; return; }
+    m.textContent = text;
+    m.style.color = isErr ? 'var(--red)' : 'var(--muted)';
+    m.style.display = 'block';
+  }
+  function setOwnedMinifigCondition(cond) {
+    window.currentFigCondition = (window.currentFigCondition === cond) ? null : cond;
+    document.getElementById('condFigUsedBtn').classList.toggle('active', window.currentFigCondition === 'used');
+    document.getElementById('condFigNewBtn').classList.toggle('active', window.currentFigCondition === 'new');
+    saveOwnedMinifigMeta();
+  }
+  function saveOwnedMinifigMeta() {
+    if (!selectedPart) return;
+    const raw = document.getElementById('figPaidInput').value.trim();
+    const price = raw === '' ? null : parseFloat(raw);
+    fetch(`/api/owned_minifigs/${encodeURIComponent(selectedPart.id)}/meta`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ condition: window.currentFigCondition, price_paid: price })
+    }).catch(() => _figOwnMsg('Couldn’t save purchase info.', true));
+  }
+  function loadOwnedMinifigStatus(figNum) {
+    _renderOwnedMinifigUI(false, 0);
+    _figOwnMsg('');
+    fetch(`/api/owned_minifigs/${encodeURIComponent(figNum)}`)
+      .then(r => r.json())
+      .then(d => _renderOwnedMinifigUI(!!d.owned, d.quantity || 0, d.condition, d.price_paid))
+      .catch(() => {});
+  }
   function addMinifig() {
-    const err = document.getElementById('identifyError');
-    err.style.display = 'none';
-    if (!selectedPart) { err.textContent = 'No minifig selected.'; err.style.display = 'block'; return; }
+    if (!selectedPart) { _figOwnMsg('No minifig selected.', true); return; }
+    _figOwnMsg('');
     const qty = parseInt(document.getElementById('quantityInput').value) || 1;
     fetch('/api/add_minifig', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ list_id: 0, set_num: selectedPart.id, quantity: qty })
+      body: JSON.stringify({
+        set_num: selectedPart.id, quantity: qty,
+        name: selectedPart.name || selectedPart.id, img_url: selectedPart.img_url || '',
+        bl_id: selectedPart.blId || ''
+      })
     })
     .then(r => r.json().then(data => ({ ok: r.ok, data })))
     .then(({ ok, data }) => {
       if (!ok) {
         const msg = data.non_field_errors?.[0] || data.detail || JSON.stringify(data);
-        err.textContent = `Error: ${msg}`; err.style.display = 'block'; return;
+        _figOwnMsg(`Couldn’t add: ${msg}`, true); return;
       }
-      const figLabel = selectedPart.name || selectedPart.id;
-      if (data._updated) {
-        const prev = data._previous_quantity;
-        document.getElementById('successMsg').textContent =
-          `${figLabel} updated: ${prev} → ${prev + qty} in your minifig collection.`;
-      } else {
-        document.getElementById('successMsg').textContent =
-          `${qty}× ${figLabel} added to your minifig collection.`;
-      }
-      document.getElementById('successTitle').textContent = 'Minifig Added!';
-      goTo('screen-success');
+      const newQty = parseInt(data.quantity) || qty;
+      // Preserve any condition/price already shown (server keeps it across qty changes).
+      _renderOwnedMinifigUI(true, newQty, window.currentFigCondition, document.getElementById('figPaidInput').value);
+      showToast(data._updated ? `Now ×${newQty} in My Minifigs` : 'Added to My Minifigs');
     })
-    .catch(() => { err.textContent = 'Network error.'; err.style.display = 'block'; });
+    .catch(() => _figOwnMsg('Network error.', true));
+  }
+  function removeMinifigOne() {
+    if (!selectedPart) return;
+    _figOwnMsg('');
+    fetch('/api/remove_minifig_one', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ set_num: selectedPart.id })
+    })
+    .then(r => r.json().then(data => ({ ok: r.ok, data })))
+    .then(({ ok, data }) => {
+      if (!ok) { _figOwnMsg(`Couldn’t update: ${data.error || 'try again'}`, true); return; }
+      const qty = data.quantity || 0;
+      _renderOwnedMinifigUI(qty > 0, qty, window.currentFigCondition, document.getElementById('figPaidInput').value);
+      if (qty === 0) showToast('Removed from My Minifigs');
+    })
+    .catch(() => _figOwnMsg('Network error.', true));
   }
 
   function showAddPartsListPicker() {
@@ -3543,7 +4066,14 @@
 
   function goTo(id) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    document.getElementById(id).classList.add('active');
+    const el = document.getElementById(id);
+    // Clear any residual back-swipe transform so the screen never shows shifted.
+    el.style.transition = ''; el.style.transform = ''; el.style.opacity = '';
+    el.classList.add('active');
+    if (typeof syncLiveScan === 'function') syncLiveScan();
+    // If an app update was detected while on a busy screen, apply it now that
+    // we've navigated (no-op unless pending + the new screen is safe).
+    if (typeof _maybeApplyUpdate === 'function') _maybeApplyUpdate();
   }
 
   // ── Lists browser ──────────────────────────────────────────────────────
@@ -3580,7 +4110,7 @@
     grid.innerHTML = '<p style="color:var(--muted);text-align:center;padding:24px 0">Loading…</p>';
     // Pull the whole list once (lightweight bulk endpoint) so search can filter
     // it instantly in memory. Thumbnails are lazy-loaded as rows scroll in.
-    fetch(`/api/partlists/${listId}/parts_all`)
+    return fetch(`/api/partlists/${listId}/parts_all`)
       .then(r => r.json())
       .then(data => {
         if (data.error) {
@@ -3665,6 +4195,12 @@
       </div>`;
     }).join('');
     grid.innerHTML = html;
+    grid.querySelectorAll('.part-item').forEach(row => {
+      const partNum = row.dataset.partNum, colorId = row.dataset.colorId;
+      makeSwipeRemovable(row, (ctl) => {
+        mutateListPart(-1, partNum, colorId, row, null).then(removed => ctl.done(removed));
+      });
+    });
     lazyLoadImages(grid);
   }
 
@@ -4200,28 +4736,39 @@
     event.stopPropagation();
     const btn = event.currentTarget;
     const row = btn.closest('.part-item');
-    const qtyEl = row?.querySelector('.part-item-qty');
     const actionBtns = row ? [...row.querySelectorAll('.list-adjust-btn')] : [btn];
+    const originalText = btn.textContent;
+    actionBtns.forEach(b => { b.disabled = true; });
+    btn.textContent = '…';
+    // Re-enable/restore the +/− buttons when the row survives or on error.
+    mutateListPart(delta, partNum, colorId, row, () => {
+      actionBtns.forEach(b => { b.disabled = false; });
+      btn.textContent = originalText;
+    });
+  }
+
+  // Shared add/remove-one for a parts-list row. Keeps the in-memory list
+  // (`_listAllParts`, used by live search) + the qty display + count line in
+  // sync, and removes the row (and its swipe wrapper) when qty hits 0. `restore`
+  // is invoked when the row survives (qty > 0) or on failure. Returns a Promise
+  // resolving to true if the row was removed.
+  function mutateListPart(delta, partNum, colorId, row, restore) {
     const listErr = document.getElementById('listsError');
     const listId = document.getElementById('listsViewSelect').value;
     listErr.style.display = 'none';
-
     if (!listId || !partNum || colorId === '') {
       listErr.textContent = 'Missing list or part details.';
       listErr.style.display = 'block';
-      return;
+      restore && restore();
+      return Promise.resolve(false);
     }
-
-    actionBtns.forEach(b => { b.disabled = true; });
-    const originalText = btn.textContent;
-    btn.textContent = '…';
-
+    const qtyEl = row?.querySelector('.part-item-qty');
     const endpoint = delta > 0 ? '/api/add_part' : '/api/remove_part_one';
     const body = delta > 0
       ? { list_id: listId, part_num: partNum, color_id: parseInt(colorId), quantity: 1 }
       : { list_id: listId, part_num: partNum, color_id: parseInt(colorId) };
 
-    fetch(endpoint, {
+    return fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
@@ -4232,18 +4779,17 @@
         const msg = data.error || data.non_field_errors?.[0] || data.detail || JSON.stringify(data);
         listErr.textContent = `Error: ${msg}`;
         listErr.style.display = 'block';
-        actionBtns.forEach(b => { b.disabled = false; });
-        btn.textContent = originalText;
-        return;
+        restore && restore();
+        return false;
       }
-
       const previousQty = parseInt(qtyEl?.textContent.replace(/[^\d]/g, '')) || 0;
       const qty = delta > 0 ? previousQty + 1 : (parseInt(data.quantity) || 0);
-      // Keep the in-memory list (used by search) in sync with the change.
       const mem = _listAllParts.find(p => p.part_num === partNum && String(p.color_id) === String(colorId));
+      let removed = false;
       if (qty <= 0) {
         if (mem) _listAllParts.splice(_listAllParts.indexOf(mem), 1);
-        row?.remove();
+        (row?.closest('.swipe-wrap') || row)?.remove();
+        removed = true;
         if (!document.querySelector('#listPartsGrid .part-item')) {
           document.getElementById('listPartsGrid').innerHTML =
             '<p style="color:var(--muted);text-align:center;padding:24px 0">No parts in this list.</p>';
@@ -4251,22 +4797,21 @@
       } else {
         if (mem) mem.quantity = qty;
         if (qtyEl) qtyEl.textContent = `×${qty}`;
-        actionBtns.forEach(b => { b.disabled = false; });
-        btn.textContent = originalText;
+        restore && restore();
       }
-      // Refresh the search count line.
       const countEl = document.getElementById('listSearchCount');
       const sv = (document.getElementById('listSearchInput').value || '').trim();
       if (countEl) countEl.textContent = sv
         ? `${document.querySelectorAll('#listPartsGrid .part-item').length} of ${_listAllParts.length} parts`
         : `${_listAllParts.length} parts`;
       loadPartlists(parseInt(listId));
+      return removed;
     })
     .catch(() => {
       listErr.textContent = 'Network error.';
       listErr.style.display = 'block';
-      actionBtns.forEach(b => { b.disabled = false; });
-      btn.textContent = originalText;
+      restore && restore();
+      return false;
     });
   }
 
@@ -4472,22 +5017,52 @@
           '<span style="color:var(--muted);font-size:13px">Price unavailable</span>';
       });
 
-    // Show parts view by default
-    showSetPartsView();
+    // Show parts view by default (return its promise so pull-to-refresh can
+    // spin until the set's contents have actually loaded).
+    return showSetPartsView();
   }
 
   // ── Owned sets ("My Sets" collection) ──────────────────────────────────
-  function _renderOwnedSetUI(owned, qty) {
+  function _renderOwnedSetUI(owned, qty, condition, pricePaid) {
     const addBtn = document.getElementById('setOwnAddBtn');
     const stepper = document.getElementById('setOwnStepper');
+    const meta = document.getElementById('setOwnMeta');
     if (owned) {
       addBtn.style.display = 'none';
       stepper.style.display = 'flex';
       document.getElementById('setOwnQty').textContent = `×${qty}`;
+      meta.style.display = 'flex';
+      _renderOwnedMeta(condition, pricePaid);
     } else {
       addBtn.style.display = 'block';
       stepper.style.display = 'none';
+      meta.style.display = 'none';
     }
+  }
+  // Reflect stored purchase metadata into the condition pills + price input.
+  function _renderOwnedMeta(condition, pricePaid) {
+    window.currentSetCondition = (condition === 'used' || condition === 'new') ? condition : null;
+    document.getElementById('condUsedBtn').classList.toggle('active', condition === 'used');
+    document.getElementById('condNewBtn').classList.toggle('active', condition === 'new');
+    const inp = document.getElementById('setPaidInput');
+    inp.value = (pricePaid !== null && pricePaid !== undefined && pricePaid !== '') ? pricePaid : '';
+  }
+  // Toggle the condition (tap an active pill again to clear), then persist.
+  function setOwnedCondition(cond) {
+    window.currentSetCondition = (window.currentSetCondition === cond) ? null : cond;
+    document.getElementById('condUsedBtn').classList.toggle('active', window.currentSetCondition === 'used');
+    document.getElementById('condNewBtn').classList.toggle('active', window.currentSetCondition === 'new');
+    saveOwnedMeta();
+  }
+  function saveOwnedMeta() {
+    const setNum = window.currentSetNum;
+    if (!setNum) return;
+    const raw = document.getElementById('setPaidInput').value.trim();
+    const price = raw === '' ? null : parseFloat(raw);
+    fetch(`/api/owned_sets/${encodeURIComponent(setNum)}/meta`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ condition: window.currentSetCondition, price_paid: price })
+    }).catch(() => _setOwnMsg('Couldn’t save purchase info.', true));
   }
   function _setOwnMsg(text, isErr) {
     const m = document.getElementById('setOwnMsg');
@@ -4501,7 +5076,7 @@
     _setOwnMsg('');
     fetch(`/api/owned_sets/${encodeURIComponent(setNum)}`)
       .then(r => r.json())
-      .then(d => _renderOwnedSetUI(!!d.owned, d.quantity || 0))
+      .then(d => _renderOwnedSetUI(!!d.owned, d.quantity || 0, d.condition, d.price_paid))
       .catch(() => {});
   }
   function addOwnedSet() {
@@ -4516,7 +5091,8 @@
     .then(({ ok, data }) => {
       if (!ok) { _setOwnMsg(`Couldn’t add: ${data.detail || data.error || 'try again'}`, true); return; }
       const qty = data.quantity || 1;
-      _renderOwnedSetUI(true, qty);
+      // Preserve any condition/price already shown (server keeps it across qty changes).
+      _renderOwnedSetUI(true, qty, window.currentSetCondition, document.getElementById('setPaidInput').value);
       showToast(data._updated ? `Now ×${qty} in My Sets` : 'Added to My Sets');
     })
     .catch(() => _setOwnMsg('Network error.', true));
@@ -4533,7 +5109,7 @@
     .then(({ ok, data }) => {
       if (!ok) { _setOwnMsg(`Couldn’t update: ${data.error || 'try again'}`, true); return; }
       const qty = data.quantity || 0;
-      _renderOwnedSetUI(qty > 0, qty);
+      _renderOwnedSetUI(qty > 0, qty, window.currentSetCondition, document.getElementById('setPaidInput').value);
       if (qty === 0) showToast('Removed from My Sets');
     })
     .catch(() => _setOwnMsg('Network error.', true));
@@ -4560,7 +5136,7 @@
     grid.innerHTML = '<p style="color:var(--muted);text-align:center;padding:18px 0;font-size:13px;">Loading your sets…</p>';
     countEl.textContent = '';
     _applyMySetsCollapsed();  // keep the persisted collapsed state across loads
-    fetch('/api/owned_sets')
+    return fetch('/api/owned_sets')
       .then(r => r.json())
       .then(data => {
         const sets = data.results || [];
@@ -4580,6 +5156,13 @@
           const img = s.img_url ? escapeHtml(s.img_url) : '/static/brick.svg';
           const meta = [s.year, s.num_parts ? `${s.num_parts} pcs` : ''].filter(Boolean).map(x => escapeHtml(String(x))).join(' · ');
           const qty = s.quantity || 1;
+          const cond = s.condition === 'used' ? 'Used' : (s.condition === 'new' ? 'New' : '');
+          const price = (s.price_paid !== null && s.price_paid !== undefined)
+            ? `$${Number(s.price_paid).toFixed(2)}` : '';
+          const purchaseBits = [
+            cond ? `<span style="font-size:11px;color:var(--muted);">${cond}</span>` : '',
+            price ? `<span style="font-family:var(--font-mono);font-size:11px;color:var(--green);">${price}</span>` : '',
+          ].filter(Boolean).join('<span style="width:3px;height:3px;border-radius:50%;background:var(--muted2);"></span>');
           return `<div class="my-set-row" data-set-num="${num}" data-set-name="${name}"
               style="display:flex;gap:12px;padding:12px 4px;border-bottom:1px solid var(--border);align-items:center;cursor:pointer;">
             <img data-src="${img}" onerror="this.onerror=null;this.src='/static/brick.svg'" style="width:54px;height:54px;object-fit:contain;background:var(--socket);border:1px solid var(--border);border-radius:8px;flex-shrink:0;">
@@ -4592,12 +5175,215 @@
             </div>
             <div style="text-align:right;flex-shrink:0;">
               <div style="font-family:var(--font-mono);font-weight:700;color:var(--text);">×${qty}</div>
-              <div style="font-size:11px;color:var(--muted);">owned</div>
+              ${purchaseBits
+                ? `<div style="display:flex;align-items:center;justify-content:flex-end;gap:5px;margin-top:3px;">${purchaseBits}</div>`
+                : '<div style="font-size:11px;color:var(--muted);">owned</div>'}
             </div>
           </div>`;
         }).join('');
         grid.querySelectorAll('.my-set-row').forEach(el => {
-          el.addEventListener('click', () => loadSetDetails(el.dataset.setNum, el.dataset.setName));
+          el.addEventListener('click', () => {
+            if (consumeSwipe(el)) return;
+            loadSetDetails(el.dataset.setNum, el.dataset.setName);
+          });
+          makeSwipeRemovable(el, (ctl) => swipeRemoveOwnedSet(el.dataset.setNum, ctl));
+        });
+        lazyLoadImages(grid);
+      })
+      .catch(() => {
+        grid.innerHTML = '<p style="color:var(--muted);text-align:center;padding:18px 0;font-size:13px;">Network error.</p>';
+      });
+  }
+
+  // ── "My Minifigs" — the owned-minifig collection, shown in minifig mode ──
+  // Mirrors My Sets; tapping a row opens the minifig in the identify screen
+  // (its "details"), where condition/price + the owned stepper can be edited.
+  let _myMinifigsCollapsed = false;
+  try { _myMinifigsCollapsed = localStorage.getItem('myMinifigsCollapsed') === '1'; } catch (e) {}
+  function _applyMyMinifigsCollapsed() {
+    const grid = document.getElementById('myMinifigsGrid');
+    const chev = document.getElementById('myMinifigsChevron');
+    if (grid) grid.style.display = _myMinifigsCollapsed ? 'none' : '';
+    if (chev) chev.style.transform = _myMinifigsCollapsed ? 'rotate(-90deg)' : '';
+  }
+  function toggleMyMinifigs() {
+    _myMinifigsCollapsed = !_myMinifigsCollapsed;
+    try { localStorage.setItem('myMinifigsCollapsed', _myMinifigsCollapsed ? '1' : '0'); } catch (e) {}
+    _applyMyMinifigsCollapsed();
+  }
+  // ── Swipe-left-to-remove-one for list rows (iOS Mail style) ─────────────
+  // Wraps an existing row so a leftward swipe slides it to reveal a "Remove 1"
+  // button. onRemove(ctl) does the removal; call ctl.done(true) when the row is
+  // gone, ctl.done(false) to keep it (snap closed), or ctl.fail() on error.
+  let _openSwipeRow = null;
+  function closeOpenSwipe(except) {
+    if (_openSwipeRow && _openSwipeRow !== except && _openSwipeRow._swipeClose) _openSwipeRow._swipeClose();
+  }
+  function makeSwipeRemovable(rowEl, onRemove, label) {
+    const SW = 92, THRESH = SW * 0.4;
+    const wrap = document.createElement('div');
+    wrap.className = 'swipe-wrap';
+    rowEl.parentNode.insertBefore(wrap, rowEl);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'swipe-remove-btn';
+    btn.textContent = label || 'Remove 1';
+    wrap.appendChild(btn);
+    rowEl.classList.add('swipe-fg');
+    wrap.appendChild(rowEl);
+
+    let startX = 0, startY = 0, dir = null, dragging = false, open = false, curX = 0;
+    const setX = (x, anim) => {
+      curX = x;
+      rowEl.style.transition = anim ? 'transform .18s ease' : '';
+      rowEl.style.transform = x ? `translateX(${x}px)` : '';
+    };
+    const doOpen = () => { open = true; rowEl._swipeOpen = true; _openSwipeRow = rowEl; setX(-SW, true); };
+    const doClose = () => { open = false; rowEl._swipeOpen = false; if (_openSwipeRow === rowEl) _openSwipeRow = null; setX(0, true); };
+    rowEl._swipeClose = doClose;
+    const resetBtn = () => { btn.disabled = false; btn.textContent = label || 'Remove 1'; };
+
+    rowEl.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) return;
+      startX = e.touches[0].clientX; startY = e.touches[0].clientY;
+      dir = null; dragging = true; rowEl._swipeMoved = false;
+    }, { passive: true });
+    rowEl.addEventListener('touchmove', (e) => {
+      if (!dragging) return;
+      const ddx = e.touches[0].clientX - startX, ddy = e.touches[0].clientY - startY;
+      if (dir === null) {
+        if (Math.abs(ddx) < 8 && Math.abs(ddy) < 8) return;
+        dir = Math.abs(ddx) > Math.abs(ddy) ? 'h' : 'v';
+        if (dir === 'h') closeOpenSwipe(rowEl);
+      }
+      if (dir !== 'h') return;
+      e.preventDefault();
+      rowEl._swipeMoved = true;
+      let nx = (open ? -SW : 0) + ddx;
+      nx = Math.max(-SW - 16, Math.min(0, nx));
+      setX(nx, false);
+    }, { passive: false });
+    const end = () => {
+      if (!dragging) return;
+      dragging = false;
+      if (dir !== 'h') return;
+      (curX < -THRESH) ? doOpen() : doClose();
+    };
+    rowEl.addEventListener('touchend', end);
+    rowEl.addEventListener('touchcancel', end);
+
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      btn.disabled = true; btn.textContent = '…';
+      onRemove({
+        done: (removed) => { if (removed) wrap.remove(); else { doClose(); resetBtn(); } },
+        fail: () => { resetBtn(); },
+      });
+    });
+  }
+  // For rows that also have a tap action: swallow the tap when the row was
+  // swiped or is open (closing it instead of triggering the tap).
+  function consumeSwipe(rowEl) {
+    if (rowEl._swipeOpen) { rowEl._swipeClose && rowEl._swipeClose(); rowEl._swipeMoved = false; return true; }
+    if (rowEl._swipeMoved) { rowEl._swipeMoved = false; return true; }
+    return false;
+  }
+  // Swipe "Remove 1" actions for the My Sets / My Minifigs browse rows. On
+  // success they reload the whole list (no search filter to preserve, and it
+  // re-wraps the rows); on error they reset the swipe button.
+  function swipeRemoveOwnedSet(setNum, ctl) {
+    fetch('/api/remove_set_one', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ set_num: setNum }) })
+      .then(r => r.json().then(data => ({ ok: r.ok, data })))
+      .then(({ ok, data }) => {
+        if (!ok) { showToast('Couldn’t remove set'); ctl.fail(); return; }
+        const qty = data.quantity || 0;
+        showToast(qty === 0 ? 'Removed from My Sets' : `Now ×${qty} in My Sets`);
+        loadMySets();
+      })
+      .catch(() => { showToast('Network error'); ctl.fail(); });
+  }
+  function swipeRemoveOwnedMinifig(figNum, ctl) {
+    fetch('/api/remove_minifig_one', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ set_num: figNum }) })
+      .then(r => r.json().then(data => ({ ok: r.ok, data })))
+      .then(({ ok, data }) => {
+        if (!ok) { showToast('Couldn’t remove minifig'); ctl.fail(); return; }
+        const qty = data.quantity || 0;
+        showToast(qty === 0 ? 'Removed from My Minifigs' : `Now ×${qty} in My Minifigs`);
+        loadMyMinifigs();
+      })
+      .catch(() => { showToast('Network error'); ctl.fail(); });
+  }
+
+  // Back/Retake from the identify screen — refresh My Minifigs if we're in
+  // minifig mode so collection edits made on identify show up on the scan screen.
+  function retakeOrBack() {
+    goTo('screen-scan');
+    if (mode === 'minifigs') loadMyMinifigs();
+  }
+  function loadMyMinifigs() {
+    const grid = document.getElementById('myMinifigsGrid');
+    const countEl = document.getElementById('myMinifigsCount');
+    if (!grid) return;
+    grid.innerHTML = '<p style="color:var(--muted);text-align:center;padding:18px 0;font-size:13px;">Loading your minifigs…</p>';
+    countEl.textContent = '';
+    _applyMyMinifigsCollapsed();
+    return fetch('/api/owned_minifigs')
+      .then(r => r.json())
+      .then(data => {
+        const figs = data.results || [];
+        if (data.error) {
+          grid.innerHTML = '<p style="color:var(--muted);text-align:center;padding:18px 0;font-size:13px;">Couldn’t load your minifigs.</p>';
+          return;
+        }
+        if (!figs.length) {
+          grid.innerHTML = '<p style="color:var(--muted);text-align:center;padding:18px 0;font-size:13px;">No minifigs yet. Scan or search a minifig and tap “Add to My Minifigs.”</p>';
+          return;
+        }
+        const totalCopies = figs.reduce((n, f) => n + (f.quantity || 1), 0);
+        countEl.textContent = `${figs.length} fig${figs.length === 1 ? '' : 's'} · ${totalCopies} owned`;
+        grid.innerHTML = figs.map(f => {
+          const num = escapeHtml(f.fig_num || '');
+          const name = escapeHtml(f.name || f.fig_num || '?');
+          const img = f.img_url ? escapeHtml(f.img_url) : '/static/minifig.png';
+          const bl = f.bl_id ? escapeHtml(f.bl_id) : '';
+          const meta = f.num_parts ? `${f.num_parts} pcs` : '';
+          const dot = '<span style="width:3px;height:3px;border-radius:50%;background:var(--muted2);"></span>';
+          const idLine = [
+            `<span style="font-family:var(--font-mono);font-size:12px;color:var(--yellow);">${num}</span>`,
+            bl ? `<span style="font-family:var(--font-mono);font-size:12px;color:var(--muted);">BL ${bl}</span>` : '',
+            meta ? `<span style="font-size:12px;color:var(--muted);">${meta}</span>` : '',
+          ].filter(Boolean).join(dot);
+          const qty = f.quantity || 1;
+          const cond = f.condition === 'used' ? 'Used' : (f.condition === 'new' ? 'New' : '');
+          const price = (f.price_paid !== null && f.price_paid !== undefined)
+            ? `$${Number(f.price_paid).toFixed(2)}` : '';
+          const purchaseBits = [
+            cond ? `<span style="font-size:11px;color:var(--muted);">${cond}</span>` : '',
+            price ? `<span style="font-family:var(--font-mono);font-size:11px;color:var(--green);">${price}</span>` : '',
+          ].filter(Boolean).join('<span style="width:3px;height:3px;border-radius:50%;background:var(--muted2);"></span>');
+          return `<div class="my-fig-row" data-fig-num="${num}" data-fig-name="${name}" data-fig-img="${img}"
+              style="display:flex;gap:12px;padding:12px 4px;border-bottom:1px solid var(--border);align-items:center;cursor:pointer;">
+            <img data-src="${img}" onerror="this.onerror=null;this.src='/static/minifig.png'" style="width:54px;height:54px;object-fit:contain;background:var(--socket);border:1px solid var(--border);border-radius:8px;flex-shrink:0;">
+            <div style="flex:1;min-width:0;">
+              <div style="color:var(--text);font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${name}</div>
+              <div style="display:flex;align-items:center;gap:7px;margin-top:4px;flex-wrap:wrap;">
+                ${idLine}
+              </div>
+            </div>
+            <div style="text-align:right;flex-shrink:0;">
+              <div style="font-family:var(--font-mono);font-weight:700;color:var(--text);">×${qty}</div>
+              ${purchaseBits
+                ? `<div style="display:flex;align-items:center;justify-content:flex-end;gap:5px;margin-top:3px;">${purchaseBits}</div>`
+                : '<div style="font-size:11px;color:var(--muted);">owned</div>'}
+            </div>
+          </div>`;
+        }).join('');
+        grid.querySelectorAll('.my-fig-row').forEach(el => {
+          el.addEventListener('click', () => {
+            if (consumeSwipe(el)) return;
+            openMinifigFromSearch(el.dataset.figNum, el.dataset.figName, el.dataset.figImg);
+          });
+          makeSwipeRemovable(el, (ctl) => swipeRemoveOwnedMinifig(el.dataset.figNum, ctl));
         });
         lazyLoadImages(grid);
       })

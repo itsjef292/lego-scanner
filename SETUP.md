@@ -53,9 +53,12 @@ python3 build_brick_db.py    # → brick_parts.db  (~9s build)
 **5. Tailscale** (private phone access):
 ```bash
 brew install --cask tailscale   # launch it, sign into the SAME account as your phone
+# Then serve over HTTPS so the phone's camera/mic work (CLI isn't on PATH):
+/Applications/Tailscale.app/Contents/MacOS/Tailscale serve --bg 5001
 ```
-The MagicDNS hostname differs per machine; `./start.sh` auto-detects and prints
-the current URL. See **Private Access (Tailscale + autostart)** below.
+The MagicDNS hostname differs per machine; `./start.sh` prints the raw `http://…:5001`
+URL, and `… Tailscale serve status` prints the **HTTPS** URL (needed for live camera +
+mic). See **Private Access (Tailscale + autostart)** below.
 
 **6. Install the launchd agents** (autostart + daily refresh). The committed
 `.plist` files are templates with `__PROJECT_DIR__`; the installer fills in this
@@ -87,23 +90,30 @@ Instead of (or alongside) Render, the local instance is reachable privately
 from a phone over **Tailscale** — no public exposure, no ngrok, no port
 forwarding. The app binds `0.0.0.0:5001`, so it's available on the tailnet
 interface; traffic is WireGuard-encrypted and limited to devices signed into
-the same tailnet (`itsjeff292@`). The app uses a native file input (not
-`getUserMedia`), so plain HTTP is fine — no HTTPS needed.
+the same tailnet (`itsjeff292@`). Plain `http://…:5001` works for everything
+*except* the browser-camera features — **Live camera auto-scan** and the "Add by
+voice" mic both need a **secure context** (`getUserMedia`/Web Speech are blocked
+over plain HTTP), so use the **HTTPS** URL below on the phone to get those. The
+"Take Photo" capture flow still works over plain HTTP.
 
 - **Reach it from the phone:** install the Tailscale app, sign into the same
-  account, then open `https://jefs-macbook-pro.<tailnet>.ts.net` (HTTPS via
-  Tailscale Serve — see below) or `http://…:5001` (raw, no mic). `start.sh`
-  auto-detects and prints both.
-- **HTTPS via Tailscale Serve:** `tailscale serve --bg 5001` proxies the tailnet
-  host's :443 → local :5001 with a real (Let's Encrypt) cert, giving
-  `https://<host>.<tailnet>.ts.net`. This is a **secure context**, so the browser
-  mic ("Add by voice") works on the phone (plain HTTP isn't a secure context).
-  Persists across reboots; tailnet-only (not public). Requires HTTPS certs enabled
+  account, then open the **HTTPS** URL (live camera + mic) — currently
+  **`https://jefs-macbook-pro.tailbdd458.ts.net`** — or `http://…:5001` (raw, no
+  camera/mic). `start.sh` auto-detects and prints the raw URL.
+- **HTTPS via Tailscale Serve (recommended — enables live camera + mic):**
+  `tailscale serve --bg 5001` proxies the tailnet host's :443 → local :5001 with a
+  real (Let's Encrypt) cert, giving `https://<host>.<tailnet>.ts.net`. This is a
+  **secure context**, so the live viewfinder and mic work on the phone. `--bg`
+  persists across reboots; tailnet-only (not public). Requires HTTPS certs enabled
   once in the tailnet admin console (Settings → **HTTPS Certificates → Enable**).
-  Disable with `tailscale serve --https=443 off`; inspect with `tailscale serve status`.
+  Verify with `tailscale serve status` (shows the URL + proxy target); disable with
+  `tailscale serve --https=443 off`.
 - **Tailscale install (macOS):** `brew install --cask tailscale` (the GUI app
-  auto-starts at login and stays connected). The CLI lives at
-  `/Applications/Tailscale.app/Contents/MacOS/Tailscale` (`… status` / `… ip -4`).
+  auto-starts at login and stays connected). **The CLI is not on `PATH`** with the
+  GUI app — it lives at `/Applications/Tailscale.app/Contents/MacOS/Tailscale`, so
+  run that full path (e.g. `…/Tailscale serve --bg 5001`) or add
+  `alias tailscale='/Applications/Tailscale.app/Contents/MacOS/Tailscale'` to
+  `~/.zshrc`. (`… status` / `… ip -4` for tailnet info.)
 
 **Autostart agent (`com.brickscanner.app.plist`):** a launchd LaunchAgent that
 keeps the Flask server up so the app is always reachable while the Mac is logged

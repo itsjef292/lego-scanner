@@ -3,6 +3,153 @@
 History of notable changes to Brick Scanner. Newest first. (Moved out of
 `CLAUDE.md` to keep that file lean — see git history for full diffs.)
 
+**Auto-refresh on resume + precise pull spinner (May 2026):**
+- **Stale-on-reopen fix:** iOS keeps an installed PWA's page suspended and
+  *resumes* it (no reload), so data looked stale until a force-close. Now the
+  active screen's data **auto-refreshes when the app returns to the foreground**
+  (`visibilitychange` → visible after >2s hidden, plus `pageshow`/bfcache),
+  reusing the `_ptrRefreshFn` map (`refreshActiveScreenData`). No more force-close
+  for fresh data. (Code/HTML updates still arrive on a cold start via the
+  network-first SW; resume refreshes data only.)
+- **Pull spinner now tracks the real fetch:** the list loaders
+  (`loadListContents`/`loadMySets`/`loadMyMinifigs`/`loadSetDetails` →
+  `showSetPartsView`/`loadShoppingList`) return their promise, and pull-to-refresh
+  spins until it resolves (with a 400ms floor so instant local loads don't
+  flicker) instead of a fixed 750ms.
+- **Gated auto-reload on new version:** the app code lives in `index.html`, so the
+  server injects a content-hash version (`_app_version`, exposed at `/api/version`
+  + `<meta name="app-version">`). On resume the client compares versions
+  (`checkForUpdate`); if a new build is deployed it reloads — but only at a **safe
+  moment** (`_safeToReload`: not on identify/loading/success, no modal open, not
+  mid live-scan), else it marks `_updatePending` and applies it on the next `goTo`
+  to a safe screen. Loop-guarded (`_reloading`). So the PWA stays on the latest
+  code/data without ever interrupting an in-progress scan.
+
+**Pull-to-refresh on browse screens (May 2026):**
+- Pull down from the top (page scroll at 0) on a list screen to reload it: a
+  circular spinner (`#ptrIndicator`, fixed/body-level) follows the pull, and
+  releasing past ~64px triggers the active screen's reload — **Lists**
+  (`loadListContents`, real `parts_all` re-fetch), **My Sets** (`loadMySets`),
+  **Cart** (`loadShoppingList`), **My Minifigs** (scan screen, minifig mode →
+  `loadMyMinifigs`), and **Set details** (`loadSetDetails` on `currentSetNum`).
+- **Vertical-locked** so it never collides with the horizontal back/edge swipe;
+  only arms at `scrollTop === 0`, bails if the pull turns horizontal or the page
+  is scrolled, and is suppressed while a modal is open (`_overlayOpen`). Added
+  `overscroll-behavior-y: contain` to damp the native bounce. Identify/success/
+  loading screens aren't refreshable (`_ptrRefreshFn` returns null → inert).
+
+**Swipe-from-left-edge to go back (May 2026):**
+- An iOS-style **back gesture**: swiping right from the left edge (start `< 28px`)
+  slides the current screen out and navigates to its parent. Maps:
+  `screen-identify` → scan (`retakeOrBack`), `screen-set-details` → My Sets,
+  `screen-success` → scan. The view follows the finger and fades; releasing past
+  ~70px commits, otherwise it snaps back.
+- **Only on detail screens** — the top-level tab screens (which carry the
+  swipe-LEFT-to-delete rows) are excluded, so the back gesture never collides with
+  row removal (opposite direction + different screens). Direction-locked (vertical
+  drags still scroll); suppressed while a modal/overlay is open (`_overlayOpen`).
+  `goTo` now clears any residual transform so a screen never renders shifted.
+
+**Installable PWA (May 2026):**
+- The web app is now an **installable PWA** — "Add to Home Screen" gives a real
+  app icon, full-screen standalone chrome (no Safari bars), and an offline shell.
+  No native rewrite; works on the phone via the HTTPS Tailscale URL.
+- **Manifest** (`static/manifest.webmanifest`, served at `/manifest.webmanifest`
+  with `application/manifest+json`): `display: standalone`, portrait, `#0C1014`
+  theme/background, 192/512 PNG icons.
+- **Icons** generated from the azure-brick logo: `static/app-icon.svg` (square,
+  brick on a radial bluish-dark bg) rasterized via macOS `qlmanage` + `sips` →
+  `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` (180). Committed assets.
+- **Service worker** (`static/sw.js`, served at `/sw.js` with
+  `Service-Worker-Allowed: /` + `Cache-Control: no-cache` so it's root-scoped and
+  updates promptly): navigations are **network-first** (fresh HTML online, cached
+  shell offline); `/static/` is **stale-while-revalidate**; **`/api/` and
+  cross-origin (Brickognize/Rebrickable/BrickLink/fonts) are never cached** so data
+  stays live. Bump `CACHE` (`brick-scanner-v1`) to invalidate.
+- `<head>` gains the manifest link, `theme-color`, Apple standalone meta
+  (`apple-mobile-web-app-capable`/`-status-bar-style: black`/`-title`), PNG
+  apple-touch-icon, and a guarded `serviceWorker.register('/sw.js')` (secure-context
+  only — silently skipped over plain HTTP). Backend: `/sw.js` + `/manifest.webmanifest`
+  routes (`send_from_directory` with correct MIME types).
+
+**Live camera auto-scan (hands-free) (May 2026):**
+- A **live viewfinder** on the scan screen that grabs a frame every ~1.5s and
+  runs `/api/identify`, presenting the result on the first **confident hit**
+  (top item `score ≥ 0.55`, so empty frames don't fire) — no button press per
+  scan. After a hit it releases the camera and shows the identify screen; going
+  back to scan resumes the loop.
+- **Requires a secure context** (HTTPS or `localhost`) — browsers block
+  `getUserMedia` over plain HTTP, so on the **phone over Tailscale `http://`**
+  the camera is unavailable and it falls back to the existing "Take Photo"
+  capture flow (the Live Scan button is hidden where unsupported). To get it on
+  the phone, enable HTTPS on the tailnet (`tailscale serve`). Works on desktop
+  `localhost` + Render now.
+- Implementation (`templates/index.html`): `<video id="liveVideo">` viewfinder +
+  scanning pulse in `.scan-area`; `startLiveScan`/`stopLiveScan`/`liveTick`
+  (canvas frame → JPEG blob → identify, single-flight via `_liveBusy`),
+  `toggleLiveScan` (persisted `localStorage 'liveScan'`), and `syncLiveScan()`
+  hooked into `goTo` + `switchMode` + `load` + `visibilitychange` to start the
+  camera only while the scan screen is showing and release it otherwise. No
+  backend changes (`/api/identify` already returns per-item `score`).
+
+**Swipe-left to remove one — Parts, My Sets, My Minifigs (May 2026):**
+- Rows in the **parts list (Lists tab)**, **My Sets**, and **My Minifigs** now
+  support an iOS-Mail-style **swipe-left to reveal a red "Remove 1" button**
+  (tap it to decrement by 1; deletes the row at 0). The +/− buttons stay too.
+- One reusable helper `makeSwipeRemovable(rowEl, onRemove, label)` wraps any row
+  (`.swipe-wrap` clips; `.swipe-fg` slides over an absolutely-positioned
+  `.swipe-remove-btn`). Direction-locked touch handling (`touch-action: pan-y`,
+  8px lock threshold) so vertical scrolling still works; only one row opens at a
+  time (`closeOpenSwipe`). For rows with a tap action (sets/minifigs) the tap is
+  swallowed when swiped/open via `consumeSwipe(rowEl)`.
+- Parts reuse the existing decrement logic: `adjustListPart` was refactored to a
+  shared `mutateListPart(delta, partNum, colorId, row, restore)` (also removes the
+  `.swipe-wrap` ancestor at qty 0; keeps the in-memory search list + count in
+  sync). Sets/minifigs call `swipeRemoveOwnedSet` / `swipeRemoveOwnedMinifig`
+  (`remove_set_one` / `remove_minifig_one`), then reload the browse list.
+
+**My Minifigs — local collection + condition/price (May 2026):**
+- **Minifigs now have a real owned collection** (quantity + Used/New + price paid),
+  mirroring My Sets. **Key constraint:** Rebrickable's `/users/{token}/minifigs/`
+  is **read-only** (`GET, HEAD, OPTIONS` only; no per-item endpoint — it just
+  aggregates the minifigs inside owned sets), so the prior "Add to My Minifigs"
+  (POST to that endpoint) actually got a 405 and never worked. The whole
+  collection therefore lives **locally** in `.minifig_collection.json` keyed by
+  fig_num (`{quantity, condition, price_paid, name, img_url}`), git-ignored.
+  **LOCAL-ONLY** (ephemeral on Render), like the set metadata.
+- Backend (all local, no Rebrickable calls): `add_minifig` (merge qty + store
+  name/img), `remove_minifig_one` (decrement, delete + drop metadata at 0),
+  `owned_minifig_status`, `owned_minifigs/<fig>/meta` (no-op if not owned),
+  `owned_minifigs` (name-sorted list). Generic JSON helpers `_load_meta` /
+  `_save_meta` / `_clean_meta` are now shared with the set metadata.
+- **Identify screen (minifig):** the owned bar replaces the generic add button +
+  quantity input — "+ Add to My Minifigs" → an "In My Minifigs ×N" stepper plus a
+  Used/New toggle and `$` price (autosave), exactly like set-details
+  (`_renderOwnedMinifigUI`, `addMinifig`, `removeMinifigOne`, `setOwnedMinifigCondition`,
+  `saveOwnedMinifigMeta`). Adding no longer routes to the success screen — it flips
+  in place with a toast, matching sets.
+- **My Minifigs browse list** (minifig mode on the scan screen, collapsible like My
+  Sets): thumbnail, name, fig#, **BrickLink id**, ×N + condition/price; tapping a row
+  reopens the minifig on the identify screen (its "details") to edit (`loadMyMinifigs`,
+  `toggleMyMinifigs`, `retakeOrBack`). The BrickLink id (`bl_id`) is captured into the
+  collection entry on add (from `selectedPart.blId`); entries added before this shows
+  no id until re-added.
+
+**My Sets — condition + price-paid tracking (May 2026):**
+- Each owned set can now record a **condition** (Used/New) and **price paid**.
+  Rebrickable's owned-sets API only stores quantity, so this metadata lives in a
+  local `.set_meta.json` keyed by set_num (git-ignored). **LOCAL-ONLY:** Render's
+  filesystem is ephemeral, so it stays empty there (public site shows blanks);
+  one value per set, regardless of quantity.
+- Backend: `POST /api/owned_sets/<set_num>/meta` (normalizes input — invalid
+  condition → null, price coerced to float, an all-null body clears the entry);
+  `owned_set_status` + `owned_sets` now include `condition`/`price_paid`; fully
+  removing a set (`remove_set_one` → qty 0) also deletes its metadata.
+- **Set-details screen:** a purchase bar under the qty stepper (shown only when
+  owned) with a `Used`/`New` toggle (tap the active pill again to clear) and a
+  `$` price input; both autosave (`setOwnedCondition`, `saveOwnedMeta`,
+  `_renderOwnedMeta`). **My Sets list** rows show the condition + price.
+
 **Owned Sets — "My Sets" collection (May 2026):**
 - Track which sets you own (the user's Rebrickable set collection,
   `/users/{token}/sets/` — syncs with rebrickable.com, separate from the

@@ -1,8 +1,9 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_from_directory
 import os
 import re
 import sys
 import json
+import hashlib
 import datetime
 import sqlite3
 import requests
@@ -38,6 +39,55 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 LOCAL_DB_PATH = os.path.join(_HERE, "brick_parts.db")
 CATALOG_MANIFEST_PATH = os.path.join(_HERE, ".catalog_manifest.json")
 CATALOG_CHANGES_PATH = os.path.join(_HERE, ".catalog_changes.json")
+
+# Local JSON stores (keyed by set_num / fig_num). LOCAL-ONLY: Render's
+# filesystem is ephemeral, so these stay empty there (the public site shows
+# blanks).
+#   SET_META_PATH         — purchase metadata (condition + price paid) for owned
+#                           sets; quantity itself lives in Rebrickable's set
+#                           collection, which can't hold this extra info.
+#   MINIFIG_COLLECTION_PATH — the entire "My Minifigs" collection (quantity +
+#                           condition + price + display name/image). Rebrickable's
+#                           minifig endpoint is read-only (derived from owned
+#                           sets), so the collection can't live there.
+SET_META_PATH = os.path.join(_HERE, ".set_meta.json")
+MINIFIG_COLLECTION_PATH = os.path.join(_HERE, ".minifig_collection.json")
+_meta_lock = threading.Lock()
+
+
+def _load_meta(path):
+    """Read a purchase-metadata map ({num: {...}}) from path; {} if absent."""
+    try:
+        with open(path) as f:
+            data = json.load(f)
+            return data if isinstance(data, dict) else {}
+    except (FileNotFoundError, ValueError):
+        return {}
+
+
+def _save_meta(path, meta):
+    """Atomically write a purchase-metadata map to path."""
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(meta, f)
+    os.replace(tmp, path)
+
+
+def _clean_meta(entry):
+    """Normalize a stored/raw meta entry to {condition, price_paid} or None.
+    condition ∈ {"used","new",None}; price_paid is a float or None."""
+    if not isinstance(entry, dict):
+        return None
+    cond = entry.get("condition")
+    cond = cond if cond in ("used", "new") else None
+    price = entry.get("price_paid")
+    try:
+        price = float(price) if price not in (None, "") else None
+    except (TypeError, ValueError):
+        price = None
+    if cond is None and price is None:
+        return None
+    return {"condition": cond, "price_paid": price}
 
 # Manual catalog-refresh state (the "refresh now" button on the scan screen).
 # LOCAL-ONLY FEATURE: refresh + change tracking are disabled on Render. Render's
@@ -496,9 +546,54 @@ def bricklink_request(method, endpoint):
         return None
 
 
+# App version = short content-hash of the page template. Changes whenever the
+# app code (index.html) changes — locally on edit, on Render per deploy — so the
+# client can detect "new version deployed" and auto-reload. Cached by mtime so we
+# don't re-hash on every request.
+_INDEX_PATH = os.path.join(_HERE, "templates", "index.html")
+_version_cache = {"mtime": None, "hash": "0"}
+
+
+def _app_version():
+    try:
+        mt = os.path.getmtime(_INDEX_PATH)
+    except OSError:
+        return "0"
+    if _version_cache["mtime"] != mt:
+        try:
+            with open(_INDEX_PATH, "rb") as f:
+                _version_cache["hash"] = hashlib.md5(f.read()).hexdigest()[:12]
+            _version_cache["mtime"] = mt
+        except OSError:
+            pass
+    return _version_cache["hash"]
+
+
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return render_template("index.html", app_version=_app_version())
+
+
+@app.route("/api/version")
+def app_version():
+    """Current app-code version (page content hash) for the client update check."""
+    return jsonify({"version": _app_version()})
+
+
+# ── PWA: serve the service worker at the root (so its scope covers the whole
+#    app) and the web manifest with the right MIME type. ──
+@app.route("/sw.js")
+def service_worker():
+    resp = send_from_directory(app.static_folder, "sw.js", mimetype="application/javascript")
+    resp.headers["Cache-Control"] = "no-cache"      # always re-check the SW for updates
+    resp.headers["Service-Worker-Allowed"] = "/"
+    return resp
+
+
+@app.route("/manifest.webmanifest")
+def web_manifest():
+    return send_from_directory(app.static_folder, "manifest.webmanifest",
+                               mimetype="application/manifest+json")
 
 
 @app.route("/api/partlists")
@@ -1366,38 +1461,109 @@ def delete_minifiglist(list_id):
     return jsonify({"error": "Rebrickable does not support multiple minifig lists"}), 400
 
 
+# ── Owned minifigs ("My Minifigs") — a LOCAL collection. Rebrickable's
+#    /users/{token}/minifigs/ is read-only (GET-only; it just aggregates the
+#    minifigs inside the user's owned sets — no POST/PUT/DELETE, no per-item
+#    endpoint), so there's no way to maintain an owned-minifig list on
+#    Rebrickable. Instead the whole collection (quantity + condition + price +
+#    display name/image) lives in a local JSON store keyed by fig_num.
+#    LOCAL-ONLY: ephemeral on Render, same as the set metadata. ──
+
 @app.route("/api/add_minifig", methods=["POST"])
 def add_minifig():
+    """Add a minifig to the local owned-minifig collection (merges quantity).
+    Body: {set_num (fig_num), quantity, name, img_url}."""
     data = request.json
-    set_num = data["set_num"]
-    quantity = int(data["quantity"])
+    fig_num = data["set_num"]
+    quantity = int(data.get("quantity", 1))
+    with _meta_lock:
+        coll = _load_meta(MINIFIG_COLLECTION_PATH)
+        entry = coll.get(fig_num) or {"condition": None, "price_paid": None}
+        prev = int(entry.get("quantity", 0))
+        entry["quantity"] = prev + quantity
+        if data.get("name"):
+            entry["name"] = data["name"]
+        if data.get("img_url"):
+            entry["img_url"] = data["img_url"]
+        if data.get("bl_id"):
+            entry["bl_id"] = data["bl_id"]
+        coll[fig_num] = entry
+        _save_meta(MINIFIG_COLLECTION_PATH, coll)
+    return jsonify({"quantity": entry["quantity"], "_updated": prev > 0, "_previous_quantity": prev})
 
-    print(f"[add_minifig] set_num={set_num} qty={quantity}")
 
-    existing = requests.get(
-        f"{RB_BASE}/users/{USER_TOKEN}/minifigs/{set_num}/",
-        params={"key": API_KEY},
-    )
+@app.route("/api/remove_minifig_one", methods=["POST"])
+def remove_minifig_one():
+    """Decrement an owned minifig by 1 (delete the entry, and its metadata, at 0)."""
+    fig_num = request.json["set_num"]
+    with _meta_lock:
+        coll = _load_meta(MINIFIG_COLLECTION_PATH)
+        entry = coll.get(fig_num)
+        if not entry:
+            return jsonify({"error": "Minifig is not in your collection.", "quantity": 0}), 404
+        prev = int(entry.get("quantity", 0))
+        if prev <= 1:
+            coll.pop(fig_num, None)
+            _save_meta(MINIFIG_COLLECTION_PATH, coll)
+            return jsonify({"_deleted": True, "_previous_quantity": prev, "quantity": 0})
+        entry["quantity"] = prev - 1
+        coll[fig_num] = entry
+        _save_meta(MINIFIG_COLLECTION_PATH, coll)
+        return jsonify({"_updated": True, "_previous_quantity": prev, "quantity": prev - 1})
 
-    if existing.status_code == 200:
-        current_qty = existing.json().get("quantity", 0)
-        new_qty = current_qty + quantity
-        resp = requests.put(
-            f"{RB_BASE}/users/{USER_TOKEN}/minifigs/{set_num}/",
-            params={"key": API_KEY},
-            data={"quantity": new_qty},
-        )
-        result = resp.json()
-        result["_updated"] = True
-        result["_previous_quantity"] = current_qty
-        return jsonify(result), resp.status_code
-    else:
-        resp = requests.post(
-            f"{RB_BASE}/users/{USER_TOKEN}/minifigs/",
-            params={"key": API_KEY},
-            data={"set_num": set_num, "quantity": quantity},
-        )
-        return jsonify(resp.json()), resp.status_code
+
+@app.route("/api/owned_minifigs/<fig_num>")
+def owned_minifig_status(fig_num):
+    """Is this minifig in the local collection? → {owned, quantity, condition, price_paid}."""
+    entry = _load_meta(MINIFIG_COLLECTION_PATH).get(fig_num)
+    if entry and int(entry.get("quantity", 0)) > 0:
+        return jsonify({
+            "owned": True,
+            "quantity": entry.get("quantity", 1),
+            "condition": entry.get("condition"),
+            "price_paid": entry.get("price_paid"),
+        })
+    return jsonify({"owned": False, "quantity": 0})
+
+
+@app.route("/api/owned_minifigs/<fig_num>/meta", methods=["POST"])
+def minifig_owned_meta(fig_num):
+    """Save purchase metadata (condition + price paid) on an owned minifig.
+    Body: {condition: "used"|"new"|null, price_paid: number|null}. No-op if the
+    minifig isn't owned (metadata only attaches to a collection entry)."""
+    clean = _clean_meta(request.json or {}) or {}
+    with _meta_lock:
+        coll = _load_meta(MINIFIG_COLLECTION_PATH)
+        entry = coll.get(fig_num)
+        if entry is None:
+            return jsonify({"condition": None, "price_paid": None})
+        entry["condition"] = clean.get("condition")
+        entry["price_paid"] = clean.get("price_paid")
+        coll[fig_num] = entry
+        _save_meta(MINIFIG_COLLECTION_PATH, coll)
+    return jsonify({"condition": entry["condition"], "price_paid": entry["price_paid"]})
+
+
+@app.route("/api/owned_minifigs")
+def owned_minifigs_list():
+    """The local owned-minifig collection (quantity + condition + price), name-sorted."""
+    coll = _load_meta(MINIFIG_COLLECTION_PATH)
+    out = []
+    for fig_num, e in coll.items():
+        if int(e.get("quantity", 0)) <= 0:
+            continue
+        out.append({
+            "fig_num": fig_num,
+            "name": e.get("name"),
+            "bl_id": e.get("bl_id"),
+            "num_parts": e.get("num_parts"),
+            "img_url": e.get("img_url"),
+            "quantity": e.get("quantity", 1),
+            "condition": e.get("condition"),
+            "price_paid": e.get("price_paid"),
+        })
+    out.sort(key=lambda x: (x.get("name") or x["fig_num"]).lower())
+    return jsonify({"results": out, "count": len(out)})
 
 
 # ── Owned sets ("My Sets" collection) — the user's Rebrickable set collection
@@ -1411,10 +1577,35 @@ def owned_set_status(set_num):
         params={"key": API_KEY},
     )
     if resp.status_code == 200:
-        return jsonify({"owned": True, "quantity": resp.json().get("quantity", 1)})
+        meta = _load_meta(SET_META_PATH).get(set_num) or {}
+        return jsonify({
+            "owned": True,
+            "quantity": resp.json().get("quantity", 1),
+            "condition": meta.get("condition"),
+            "price_paid": meta.get("price_paid"),
+        })
     if resp.status_code == 404:
         return jsonify({"owned": False, "quantity": 0})
     return jsonify({"owned": False, "quantity": 0, "error": resp.text[:200]}), resp.status_code
+
+
+@app.route("/api/owned_sets/<set_num>/meta", methods=["POST"])
+def set_owned_meta(set_num):
+    """Save purchase metadata (condition + price paid) for an owned set.
+    Body: {condition: "used"|"new"|null, price_paid: number|null}. Pass both
+    null/empty to clear the entry."""
+    entry = _clean_meta(request.json or {})
+    with _meta_lock:
+        meta = _load_meta(SET_META_PATH)
+        if entry is None:
+            meta.pop(set_num, None)
+        else:
+            meta[set_num] = entry
+        _save_meta(SET_META_PATH, meta)
+    return jsonify({
+        "condition": (entry or {}).get("condition"),
+        "price_paid": (entry or {}).get("price_paid"),
+    })
 
 
 @app.route("/api/add_set", methods=["POST"])
@@ -1465,6 +1656,10 @@ def remove_set_one():
     if current_qty <= 1:
         resp = requests.delete(item_url, params={"key": API_KEY})
         if resp.status_code == 204:
+            with _meta_lock:
+                meta = _load_meta(SET_META_PATH)
+                if meta.pop(set_num, None) is not None:
+                    _save_meta(SET_META_PATH, meta)
             return jsonify({"_deleted": True, "_previous_quantity": current_qty, "quantity": 0}), 200
         return jsonify(resp.json() if resp.content else {}), resp.status_code
 
@@ -1479,6 +1674,7 @@ def remove_set_one():
 def owned_sets_list():
     """The user's owned-sets collection (paginated through, newest Rebrickable order)."""
     out = []
+    meta = _load_meta(SET_META_PATH)
     page = 1
     while page <= 100:
         resp = rebrickable_get(
@@ -1493,6 +1689,7 @@ def owned_sets_list():
         data = resp.json()
         for it in data.get("results", []):
             s = it.get("set") or {}
+            m = meta.get(s.get("set_num")) or {}
             out.append({
                 "set_num": s.get("set_num"),
                 "name": s.get("name"),
@@ -1500,6 +1697,8 @@ def owned_sets_list():
                 "num_parts": s.get("num_parts"),
                 "img_url": s.get("set_img_url"),
                 "quantity": it.get("quantity", 1),
+                "condition": m.get("condition"),
+                "price_paid": m.get("price_paid"),
             })
         if not data.get("next"):
             break

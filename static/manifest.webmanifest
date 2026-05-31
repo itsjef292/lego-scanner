@@ -1,0 +1,15 @@
+{
+  "name": "Brick Scanner",
+  "short_name": "Bricks",
+  "description": "Identify LEGO parts and minifigs from your camera and manage your Rebrickable inventory.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0C1014",
+  "theme_color": "#0C1014",
+  "icons": [
+    { "src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
